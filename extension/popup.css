@@ -1,0 +1,121 @@
+:root {
+  color-scheme: light;
+  --accent: #146d65;
+  --accent-hover: #0e5b54;
+  --text: #20323f;
+  --muted: #637580;
+  --line: #e1e8ec;
+  --surface: #fff;
+  --background: #f4f7f9;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--background);
+  font: 13px/1.6 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+body.extension-popup { width: 368px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 18px; font-weight: 650; line-height: 1.35; }
+h2 { font-size: 14px; font-weight: 600; line-height: 1.5; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+button, input, select { font: inherit; }
+button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid #5baca0;
+  outline-offset: 2px;
+}
+button:disabled { cursor: default; opacity: .5; }
+.extension-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.extension-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.extension-brand p { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.brand-mark {
+  display: grid;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 21px;
+  font-weight: 700;
+}
+.extension-version, .subtle-badge {
+  display: inline-block;
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--muted);
+  background: #f8fafb;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.popup-content { display: grid; gap: 14px; padding: 16px; }
+.panel { padding: 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.section-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 14px; }
+.muted, .field-help { color: var(--muted); }
+.popup-launch .muted { margin: 7px 0 14px; }
+label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 500; }
+input:not([type="checkbox"]), select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #d4dfe5;
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+}
+input:not([type="checkbox"]):disabled, select:disabled { background: #f5f7f8; color: #7f8e97; }
+input[readonly] { background: #f7f9fa; }
+.extension-id { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+.field-help { margin-top: 7px; font-size: 11px; line-height: 1.6; }
+.primary-button, .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.primary-button { background: var(--accent); color: #fff; box-shadow: 0 1px 2px #146d651c; }
+.primary-button:hover:not(:disabled) { background: var(--accent-hover); }
+.secondary-button { border-color: #d4dfe5; color: var(--text); background: #fff; }
+.secondary-button:hover:not(:disabled) { border-color: #9fbfb9; color: var(--accent); background: #f4f9f8; }
+.full-width { width: 100%; }
+.status-message {
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid #dce9e6;
+  border-radius: 7px;
+  color: #365e58;
+  background: #eef6f4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.status-message:empty { display: none; }
+.status-message[data-state="error"] { border-color: #f0d6ce; color: #944830; background: #fff6f2; }
+.status-message[data-state="review"] { border-color: #efdfb8; color: #805d16; background: #fffaed; }
+.status-message[data-state="ready"], .status-message[data-state="done"] { border-color: #cbe3d9; color: #28654e; background: #edf7f1; }
+.workbench-link { display: inline-flex; justify-content: center; gap: 6px; font-size: 12px; font-weight: 500; }

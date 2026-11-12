@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>候选人批量采集 · HRM</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="collector.css">
+</head>
+<body class="extension-collector">
+  <header class="extension-header">
+    <div class="extension-brand">
+      <span class="brand-mark" aria-hidden="true">H</span>
+      <div><h1>候选人批量采集</h1><p>HRM · 从 BOSS 列表逐人保存履历</p></div>
+    </div>
+    <span class="extension-version">0.5.33</span>
+  </header>
+  <main class="collector-content">
+    <section class="panel">
+      <div class="section-heading"><h2>采集设置</h2><span class="subtle-badge">默认持续采集</span></div>
+      <div class="collector-fields">
+        <div><label for="job">匹配岗位</label><select id="job"></select></div>
+        <div><label for="limit">采集人数（可选）</label><input id="limit" type="number" min="1" step="1" placeholder="留空不限人数" aria-describedby="collection-mode-help"></div>
+      </div>
+      <p id="collection-mode-help" class="field-help">人数留空时持续采集，自动跳过已完成记录并加载后续列表；暂无新候选人时等待，点击「停止」结束。</p>
+      <div class="collector-options">
+        <label class="check" for="share">
+          <input id="share" type="checkbox" checked>
+          <span><strong>保存回访二维码</strong><small>保存平台分享卡片，方便后续扫码查看。</small></span>
+        </label>
+        <label class="check" for="ai">
+          <input id="ai" type="checkbox">
+          <span><strong>AI 岗位匹配</strong><small>将已核对的履历和岗位要求发送给当前配置的 AI 模型。</small></span>
+        </label>
+      </div>
+    </section>
+    <div class="collector-actions">
+      <button id="start" class="primary-button" type="button" disabled>开始采集</button>
+      <button id="stop" class="secondary-button" type="button" disabled>停止</button>
+      <a class="workbench-link" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">打开工作台 <span aria-hidden="true">↗</span></a>
+    </div>
+    <section class="panel collection-status" aria-labelledby="collection-status-heading">
+      <div class="section-heading"><h2 id="collection-status-heading">运行状态</h2><span class="status-caption">实时更新</span></div>
+      <p id="status" class="status-message" role="status" aria-live="polite">正在连接本地工作台…</p>
+    </section>
+    <section id="review" class="panel review-panel" hidden aria-label="重新读取当前候选人">
+      <div class="section-heading"><h2>当前候选人需要重试</h2><span class="review-badge">自动校验未通过</span></div>
+      <p class="muted">请检查页面展开状态后重新读取，插件会再次校验并自动继续。</p>
+      <iframe id="review-preview" class="resume-preview" title="履历预览" sandbox hidden></iframe>
+      <div class="review-actions">
+        <button id="review-retry" class="secondary-button" type="button">重新读取并校验</button>
+      </div>
+    </section>
+    <section class="panel results-panel" aria-labelledby="results-heading">
+      <div class="section-heading"><h2 id="results-heading">候选人进度</h2><span class="status-caption">按列表顺序处理</span></div>
+      <ol id="results"></ol>
+      <p class="results-empty">开始采集后，这里会逐人显示保存结果。</p>
+    </section>
+    <p class="collector-guidance">采集前请打开 BOSS 候选人小卡片列表。插件会自动校验完整性，通过后保存并处理下一位。读取期间保持原标签页打开，展开或复制异常时可重新读取。</p>
+  </main>
+  <script type="module" src="collector.js"></script>
+</body>
+</html>

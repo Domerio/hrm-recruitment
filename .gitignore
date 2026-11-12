@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+data/
+__pycache__/
+*.py[cod]
+*.log
+node_modules/
+.npm-cache/
+.ocr-runtime/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+# Local browser verification screenshots (not source fixtures).
+tests/*-proof.jpg

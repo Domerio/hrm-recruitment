@@ -1,0 +1,11 @@
+{
+ "manifest_version":3,
+ "name":"HRM BOSS 候选人助手",
+ "version":"0.5.33",
+ "description":"从 BOSS 候选人列表逐人打开简历，复制正文并保存到本机工作台。",
+ "permissions":["activeTab","scripting","storage","debugger"],
+ "optional_permissions":["clipboardRead"],
+ "host_permissions":["http://127.0.0.1/*"],
+ "optional_host_permissions":["https://www.zhipin.com/*","https://zhipin.com/*"],
+ "action":{"default_title":"HRM 候选人助手","default_popup":"popup.html"}
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>候选人助手 · HRM</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="extension-popup">
+  <header class="extension-header">
+    <div class="extension-brand">
+      <span class="brand-mark" aria-hidden="true">H</span>
+      <div><h1>候选人助手</h1><p>HRM · BOSS 简历采集</p></div>
+    </div>
+    <span class="extension-version">0.5.33</span>
+  </header>
+  <main class="popup-content">
+    <section class="panel popup-launch">
+      <h2>从当前列表开始</h2>
+      <p class="muted">在已登录的 BOSS 候选人列表打开采集窗口，选择岗位后逐人保存履历。</p>
+      <button id="open-collector" class="primary-button full-width" type="button">打开批量采集窗口 <span aria-hidden="true">↗</span></button>
+    </section>
+    <section class="panel">
+      <div class="section-heading"><h2>连接工作台</h2><span class="subtle-badge">首次使用</span></div>
+      <label for="extension-id">扩展 ID</label>
+      <input id="extension-id" class="extension-id" readonly spellcheck="false" aria-describedby="extension-id-help">
+      <p id="extension-id-help" class="field-help">复制到工作台「连接与集成」中完成授权。</p>
+    </section>
+    <p id="status" class="status-message" role="status" aria-live="polite"></p>
+    <a class="workbench-link" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">打开本地工作台 <span aria-hidden="true">↗</span></a>
+  </main>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
