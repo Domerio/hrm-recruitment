@@ -1,6 +1,9 @@
+import { confirmedGreetingAccounts } from './boss-chat-link.mjs';
+
 export const currentEvaluation = candidate => candidate.ai_pending ? undefined : candidate.history?.[0]?.result;
 export const aiStatus = candidate => candidate.ai_pending ? 'pending' : candidate.history?.length ? 'evaluated' : 'unevaluated';
-export const contacts = candidate => [candidate.phone && '手机', candidate.email && '邮箱', candidate.wechat && '微信', candidate.link && '平台入口'].filter(Boolean);
+export const contacts = candidate => [candidate.phone && '手机', candidate.email && '邮箱', candidate.wechat && '微信',
+  (candidate.link || confirmedGreetingAccounts(candidate).length > 0) && '平台入口'].filter(Boolean);
 export const importedAt = candidate => Date.parse(candidate.created) || 0;
 export const hasFilterValue = value => value !== undefined && value !== null && value !== '';
 const nameOrder = new Intl.Collator('zh-CN-u-co-pinyin', { numeric: true });
@@ -8,6 +11,7 @@ const includes = (value, query) => String(value || '').toLowerCase().includes(St
 
 function matchesContact(candidate, filter) {
   if (filter === 'available' || filter === 'missing') return Boolean(contacts(candidate).length) === (filter === 'available');
+  if (filter === 'link') return Boolean(candidate.link || confirmedGreetingAccounts(candidate).length > 0);
   return !filter || Boolean(candidate[filter]);
 }
 

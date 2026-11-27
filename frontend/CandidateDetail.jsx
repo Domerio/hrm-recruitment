@@ -5,6 +5,11 @@ import {
   Select, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import { evidenceDisplay, evidencePreview } from './evidence-display.mjs';
+import CandidateCommunicationAttachments from './CandidateCommunicationAttachments';
+import CandidateChatEntry from './CandidateChatEntry';
+import CandidateFavoriteEntry from './CandidateFavoriteEntry';
+import { candidateEvaluationFailure } from './evaluation-failure.mjs';
+import { isRuleRejected } from '../extension/evaluation-result.mjs';
 
 export const reviewOptions = ['未复核', '通过复核', '待补充信息', '暂不推进'].map(value => ({
   value, label: value,
@@ -234,8 +239,35 @@ function ScoringExplanation({ result }) {
   } />;
 }
 
-function EvaluationSummary({ history, pending, evaluation }) {
-  const result = history[0]?.result;
+export function ScreeningFailure({ failure, retrying = false }) {
+  if (!failure || typeof failure.message !== 'string' || !failure.message.trim()) return null;
+  const diagnostic = {
+    code: failure.code, message: failure.message, validation_path: failure.validation_path,
+    created: failure.created, model: failure.model, job_revision: failure.job_revision,
+    attempts: Array.isArray(failure.attempts) ? failure.attempts : [],
+  };
+  return <Alert type={retrying ? 'warning' : 'error'} showIcon title={retrying ? '上次评估失败' : '评估失败'} description={
+    <Flex vertical gap={8}>
+      <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>失败原因：{failure.message}</span>
+      <Typography.Text type="secondary">
+        {failure.created ? displayTime(failure.created) : ''}{failure.model ? ` · ${failure.model}` : ''}
+      </Typography.Text>
+      <details>
+        <summary style={{ cursor: 'pointer' }}>查看评估诊断</summary>
+        <pre style={{ maxHeight: 360, overflow: 'auto', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
+          marginBottom: 0, fontSize: 12 }}>{JSON.stringify(diagnostic, null, 2)}</pre>
+      </details>
+    </Flex>
+  } />;
+}
+
+export function EvaluationSummary({ history = [], pending, evaluation, failure, result: directResult }) {
+  const result = directResult ?? history[0]?.result;
+  const ruleRejected = isRuleRejected(result);
+  const completed = evaluation?.taskState === 'succeeded';
+  const refreshError = completed && evaluation?.error;
+  if (completed) failure = null;
+  const hasFailure = typeof failure?.message === 'string' && Boolean(failure.message.trim());
   const checks = Array.isArray(result?.checks) ? result.checks.filter(item => item && typeof item === 'object') : [];
   const requiredChecks = Array.isArray(result?.required_checks) ? result.required_checks.filter(item => item && typeof item === 'object') : [];
   const inferredCapabilities = Array.isArray(result?.inferred_capabilities) ? result.inferred_capabilities.filter(item => item && typeof item === 'object') : [];
@@ -253,18 +285,21 @@ function EvaluationSummary({ history, pending, evaluation }) {
 
   return (
     <Flex vertical gap={16}>
-      {evaluation?.text && <Alert title={evaluation.text}
-        type={evaluation.error ? 'error' : evaluation.running ? 'info' : 'success'} showIcon />}
-      {pending && !result?.scoring_obsolete && <Alert title="评估待重试" description="请重新评估并核对履历原文依据。" type="warning" showIcon />}
+      {evaluation?.text && !(hasFailure && evaluation.error && evaluation.text === failure.message) && <Alert
+        title={refreshError ? '评估已完成，列表刷新失败' : evaluation.error ? '评估失败' : evaluation.text}
+        description={evaluation.error ? <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{refreshError ? '刷新失败原因：' : '失败原因：'}{evaluation.text}</span> : undefined}
+        type={refreshError ? 'warning' : evaluation.error ? 'error' : evaluation.running ? 'info' : 'success'} showIcon />}
+      <ScreeningFailure failure={failure} retrying={evaluation?.running} />
+      {pending && !completed && !hasFailure && !evaluation?.error && !result?.scoring_obsolete && <Alert title="评估待重试" description="请重新评估并核对履历原文依据。" type="warning" showIcon />}
       {result ? (
         <>
-          <ScoringExplanation result={result} />
+          {ruleRejected ? <Alert type="warning" showIcon title="规则预筛不达标 · 未调用模型" /> : <ScoringExplanation result={result} />}
           <div className="candidate-eval-summary">
-            <h3 className="candidate-eval-section-title">{originalSummary ? '原评估摘要' : pending ? '上次评估摘要' : '评估摘要'}</h3>
+            <h3 className="candidate-eval-section-title">{originalSummary ? '原评估摘要' : pending || hasFailure ? '上次评估摘要' : '评估摘要'}</h3>
             <Typography.Paragraph>{result.summary}</Typography.Paragraph>
             {result.scoring_obsolete && <Typography.Text type="secondary">摘要保留原评估内容，分数与结论需重新评估。</Typography.Text>}
           </div>
-          {priorityGroups.length > 0 && <Collapse size="small" items={[{
+          {!ruleRejected && priorityGroups.length > 0 && <Collapse size="small" items={[{
             key:'weights',label:'优先级与评分权重',children:<Flex vertical gap={10}>
               {priorityGroups.map(group=><div key={group.priority}>
                 <Typography.Text strong>优先级 {group.priority} · 权重 {group.weight}</Typography.Text>
@@ -273,18 +308,20 @@ function EvaluationSummary({ history, pending, evaluation }) {
             </Flex>,
           }]} />}
           {result.evaluation_context && <Typography.Text type="secondary">
-            评估时岗位版本 {result.evaluation_context.job_revision} · 资料版本 {result.evaluation_context.candidate_revision} · {result.evaluation_context.evaluation_date}
+            评估时岗位版本 {result.evaluation_context.job_revision}
+            {result.evaluation_context.candidate_revision != null && <> · 资料版本 {result.evaluation_context.candidate_revision}</>}
+            {' · '}{result.evaluation_context.evaluation_date}
           </Typography.Text>}
           {result.must_have_status && <section>
-            <h3 className="candidate-eval-section-title">必备条件</h3>
+            <h3 className="candidate-eval-section-title">{ruleRejected ? '未通过的硬条件与原文依据' : '必备条件'}</h3>
             <Tag color={{ met:'success', not_met:'error', unknown:'warning' }[result.must_have_status]}>
               {{ met:'全部满足', not_met:'存在未满足项', unknown:'存在待核实项', not_configured:'未配置必备条件' }[result.must_have_status]}
             </Tag>
             {requiredChecks.length > 0 && <ol className="candidate-evidence-list">
-              {requiredChecks.map((check, index) => <CheckEvidence key={index} check={check} scoring={result.scoring} />)}
+              {requiredChecks.map((check, index) => <CheckEvidence key={index} check={check} scoring={ruleRejected ? undefined : result.scoring} />)}
             </ol>}
           </section>}
-          <section>
+          {!ruleRejected && <section>
             <h3 className="candidate-eval-section-title">逐项依据</h3>
             <div className="candidate-eval-counts">
               {counts.map(({ label, color, count }) => <Tag key={label} color={color}>{label} {count}</Tag>)}
@@ -292,7 +329,7 @@ function EvaluationSummary({ history, pending, evaluation }) {
             <ol className="candidate-evidence-list">
               {checks.map((check, index) => <CheckEvidence key={index} check={check} scoring={result.scoring} />)}
             </ol>
-          </section>
+          </section>}
           {inferredCapabilities.length > 0 && (
             <section>
               <h3 className="candidate-eval-section-title">项目补充能力 <Tag color="gold">待核实</Tag></h3>
@@ -309,32 +346,48 @@ function EvaluationSummary({ history, pending, evaluation }) {
               </ol>
             </section>
           )}
-          <section>
+          {!ruleRejected && <section>
             <h3 className="candidate-eval-section-title">待确认问题</h3>
             {questions.length
               ? <ul className="candidate-eval-questions">
                 {questions.map((question, index) => <li key={index}>{question}</li>)}
               </ul>
               : <Typography.Text type="secondary">暂无待确认问题</Typography.Text>}
-          </section>
-          <Collapse size="small" items={[{
+          </section>}
+          {!directResult && <Collapse size="small" items={[{
             key: 'history', label: `历史评估（${history.length} 次）`,
             children: <Flex vertical gap={10}>{history.map((item, index) => (
               <div key={item.id ?? index}>
-                <Typography.Text strong>{displayTime(item.created)} · {item.model} · {item.result.scoring_obsolete
-                  ? '旧规则，待重评' : `${item.result.score} 分${scoringAdjustment(item.result) ? '（重算后）' : ''}`}</Typography.Text>
-                <div><ScoringAdjustment result={item.result} /></div>
-                {!item.result.scoring_obsolete && (halfCreditScoringVersions.has(item.result.scoring?.version) || previousScoringVersions.has(item.result.scoring?.version)) &&
+                <Typography.Text strong>{displayTime(item.created)} · {isRuleRejected(item.result) ? '规则预筛不达标 · 未调用模型' : <>{item.model} · {item.result.scoring_obsolete
+                  ? '旧规则，待重评' : `${item.result.score} 分${scoringAdjustment(item.result) ? '（重算后）' : ''}`}</>}</Typography.Text>
+                {!isRuleRejected(item.result) && <div><ScoringAdjustment result={item.result} /></div>}
+                {!isRuleRejected(item.result) && !item.result.scoring_obsolete && (halfCreditScoringVersions.has(item.result.scoring?.version) || previousScoringVersions.has(item.result.scoring?.version)) &&
                   <div><Typography.Text type="secondary">历史 {halfCreditScoringVersions.has(item.result.scoring?.version) ? 'v3 半分' : 'v2'} 规则：尚未采用部分支持 10%–90% 的分档规则。</Typography.Text></div>}
-                {item.result.scoring_obsolete && <div><Typography.Text type="secondary">旧分数未采用，请重新评估；摘要保留原评估内容。</Typography.Text></div>}
+                {!isRuleRejected(item.result) && item.result.scoring_obsolete && <div><Typography.Text type="secondary">旧分数未采用，请重新评估；摘要保留原评估内容。</Typography.Text></div>}
                 <Typography.Text type="secondary">{item.result.summary}</Typography.Text>
               </div>
             ))}</Flex>,
-          }]} />
+          }]} />}
         </>
-      ) : !pending && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未进行 AI 评估" />}
+      ) : !pending && !completed && !hasFailure && !evaluation?.error && !evaluation?.running && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未进行 AI 评估" />}
     </Flex>
   );
+}
+
+export function CandidatePlatformNotes({ notes }) {
+  const visible = Array.isArray(notes) ? notes.filter(note =>
+    note?.kind === 'latest_work_may_be_outdated' && note.text === '最近一份工作经历可能未更新' &&
+    note.section === '工作经历' && typeof note.anchor === 'string' && note.anchor.trim() && note.anchor.length <= 1000).slice(0, 8) : [];
+  if (!visible.length) return null;
+  return <Alert type="info" showIcon title="BOSS 平台提示" className="candidate-platform-notes"
+    style={{ flex: 'none', margin: 12, maxHeight: 170, overflowY: 'auto', overflowWrap: 'anywhere' }}
+    description={<Flex vertical gap={8}>
+      {visible.map((note, index) => <div key={index}>
+        <Typography.Text>{note.text}</Typography.Text>
+        <div><Typography.Text type="secondary">关联经历：{note.anchor}</Typography.Text></div>
+      </div>)}
+      <Typography.Text type="secondary">以上为平台页面提示，可在沟通时进一步核对。</Typography.Text>
+    </Flex>} />;
 }
 
 function CandidateSource({ candidate, api, refresh, notify }) {
@@ -414,6 +467,9 @@ function CandidateSource({ candidate, api, refresh, notify }) {
   } catch { /* Keep the source image available when no supported URL exists. */ }
 
   const details = [
+    ...(source.origin === 'direct_evaluation'
+      ? [{ key: 'origin', label: '录入来源', children: <Tag color="purple">直接评估</Tag> }]
+      : []),
     { key: 'phone', label: '手机', children: candidate.phone || '未获取' },
     { key: 'email', label: '邮箱', children: candidate.email || '未获取' },
     { key: 'wechat', label: '微信', children: candidate.wechat || '未获取' },
@@ -422,6 +478,7 @@ function CandidateSource({ candidate, api, refresh, notify }) {
   ];
   return (
     <Flex vertical gap={12}>
+      <CandidateChatEntry candidate={candidate} detailed />
       <Descriptions size="small" column={1} items={details} />
       {candidate.link && /^https:\/\//i.test(candidate.link) && (
         <Typography.Link href={candidate.link} target="_blank" rel="noopener noreferrer">打开平台入口 ↗</Typography.Link>
@@ -457,7 +514,7 @@ function CandidateSource({ candidate, api, refresh, notify }) {
   );
 }
 
-export default function CandidateDetail({ candidate, jobTitle, onClose, api, refresh, notify, evaluateButton, evaluation, onEdit, editDisabled = false }) {
+export default function CandidateDetail({ candidate, jobTitle, onClose, api, refresh, notify, evaluateButton, evaluation, onEdit, editDisabled = false, extensionId }) {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('evaluation');
   const savingRef = useRef(false);
@@ -465,6 +522,9 @@ export default function CandidateDetail({ candidate, jobTitle, onClose, api, ref
   const reviewSelect = useRef(null);
   const reviewRequested = useRef(false);
   const pending = Boolean(candidate.ai_pending);
+  const completed = evaluation?.taskState === 'succeeded';
+  const failure = completed ? null : candidateEvaluationFailure(candidate);
+  const evaluationFailed = Boolean(failure || evaluation?.error && !completed);
   const result = candidate.history[0]?.result;
 
   const focusReview = useCallback(() => {
@@ -524,9 +584,13 @@ export default function CandidateDetail({ candidate, jobTitle, onClose, api, ref
       </div>,
     },
     {
-      key: 'evaluation', label: 'AI 评估',
+      key: 'communication-attachments', label: '聊天与附件',
+      children: <CandidateCommunicationAttachments candidateId={candidate.id} api={api} notify={notify} />,
+    },
+    {
+      key: 'evaluation', label: isRuleRejected(result) ? '规则预筛' : 'AI 评估',
       children: <div className="candidate-detail-tab-panel">
-        <EvaluationSummary history={candidate.history} pending={pending} evaluation={evaluation} />
+        <EvaluationSummary history={candidate.history} pending={pending} evaluation={evaluation} failure={failure} />
       </div>,
     },
     {
@@ -573,16 +637,19 @@ export default function CandidateDetail({ candidate, jobTitle, onClose, api, ref
       }>
       <div className="candidate-detail-overview">
         <div className="candidate-detail-score">
-          <span className="candidate-detail-score-label">{pending && result && !result.scoring_obsolete ? '上次 AI 匹配' : 'AI 匹配'}</span>
-          {result?.scoring_obsolete ? <Tag color="warning">旧规则，待重评</Tag> : result ? (
+          {!isRuleRejected(result) && <span className="candidate-detail-score-label">{(pending || evaluationFailed) && result && !result.scoring_obsolete ? '上次 AI 匹配' : 'AI 匹配'}</span>}
+          {isRuleRejected(result) ? <Tag color="warning">规则预筛不达标 · 未调用模型</Tag> : result?.scoring_obsolete ? <Tag color="warning">旧规则，待重评</Tag> : result ? (
             <>
               <span className="candidate-detail-score-value"><strong>{result.score}</strong><span>分</span></span>
               <EvaluationTag category={result.category} />
             </>
-          ) : !pending && !evaluation?.running && <Tag>尚未评估</Tag>}
-          {evaluation?.running ? <Tag color="processing">评估中</Tag> : pending && !result?.scoring_obsolete && <Tag color="warning">待重试</Tag>}
+          ) : !pending && !evaluationFailed && !completed && !evaluation?.running && <Tag>尚未评估</Tag>}
+          {evaluation?.running ? <Tag color="processing">评估中</Tag> : evaluationFailed
+            ? <Tag color="error">评估失败</Tag> : pending && !result?.scoring_obsolete && <Tag color={completed ? 'success' : 'warning'}>{completed ? '已完成，待刷新' : '待重试'}</Tag>}
         </div>
         <div className="candidate-detail-actions">
+          <CandidateFavoriteEntry candidate={candidate} extensionId={extensionId} />
+          <CandidateChatEntry candidate={candidate} />
           {onEdit && <Button onClick={onEdit} disabled={saving || editDisabled}>编辑资料</Button>}
           {evaluateButton}
           <Button onClick={openReview}>人工复核</Button>
@@ -594,6 +661,7 @@ export default function CandidateDetail({ candidate, jobTitle, onClose, api, ref
             <FileTextOutlined aria-hidden="true" />
             <h3 id="candidate-resume-heading">履历资料</h3>
           </div>
+          <CandidatePlatformNotes notes={candidate.source?.capture?.platform_notes} />
           <iframe className="candidate-resume-frame" src={`/api/candidates/${candidate.id}/resume.html?revision=${candidate.revision || 0}`}
             title="履历资料" sandbox="" />
         </section>

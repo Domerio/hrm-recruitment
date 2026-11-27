@@ -5,6 +5,7 @@ import unicodedata
 from urllib.parse import urlsplit
 from evaluation_scoring import normalize_condition
 from candidate_profile import extract_candidate_profile_with_sources
+from platform_search import normalize_search_conditions, search_conditions_record, save_search_conditions
 
 
 PROFILE_LIMITS = {'company':200, 'title':200, 'city':100, 'education':200, 'skills':4000, 'wechat':100}
@@ -21,6 +22,8 @@ def ensure_edit_tables(db):
             must_have TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 1);
         CREATE TABLE IF NOT EXISTS job_priorities(job_id INTEGER PRIMARY KEY REFERENCES jobs(id),
             groups_json TEXT NOT NULL DEFAULT '[]');
+        CREATE TABLE IF NOT EXISTS job_search_conditions(job_id INTEGER PRIMARY KEY REFERENCES jobs(id),
+            conditions_json TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS candidate_profiles(candidate_id INTEGER PRIMARY KEY REFERENCES candidates(id),
             company TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '',
             education TEXT NOT NULL DEFAULT '', skills TEXT NOT NULL DEFAULT '', wechat TEXT NOT NULL DEFAULT '',
@@ -79,6 +82,7 @@ def job_record(db, jid):
     job['priority_groups'] = normalize_priority_groups(json.loads(priorities[0]) if priorities else [], conditions)
     # Saving the generated numbered layout does not turn it into a custom layout.
     job['priority_configured'] = bool(priorities) and job['priority_groups'] != default_priority_groups(conditions)
+    job['search_conditions'] = search_conditions_record(db, jid)
     return job
 
 
@@ -241,6 +245,7 @@ def job_values(data):
         mandatory = requirement_lines(values['must_have'])
     values['must_have'] = '\n'.join(mandatory)
     values['priority_groups'] = normalize_priority_groups(data.get('priority_groups'), ordinary+mandatory)
+    values['search_conditions'] = normalize_search_conditions(data.get('search_conditions', {}))
     return values
 
 
@@ -254,6 +259,8 @@ def update_job(db, data, audit):
     if type(data.get('revision')) is not int or data['revision'] != previous['revision']:
         raise RevisionConflict('岗位已被修改，请刷新后重新编辑，当前输入已保留。')
     values = job_values(data)
+    if 'search_conditions' not in data:
+        values['search_conditions'] = previous['search_conditions']
     if 'priority_groups' not in data:
         values['priority_groups'] = normalize_priority_groups(previous['priority_groups'] if previous['priority_configured'] else None,
             requirement_lines(values['criteria'], 100, max_line=12000)+requirement_lines(values['must_have'], 100, max_line=12000), reconcile=True)
@@ -269,6 +276,7 @@ def update_job(db, data, audit):
             DO UPDATE SET must_have=excluded.must_have,revision=excluded.revision''', (jid, values['must_have'], revision))
         db.execute('''INSERT INTO job_priorities VALUES(?,?) ON CONFLICT(job_id)
             DO UPDATE SET groups_json=excluded.groups_json''', (jid, json.dumps(values['priority_groups'], ensure_ascii=False)))
+        save_search_conditions(db, jid, values['search_conditions'])
         if invalidated:
             count = invalidate_evaluations(db, [r[0] for r in db.execute('SELECT id FROM candidates WHERE job_id=? AND deleted=0', (jid,))], audit)
         audit(db, 'update_job', str(jid))

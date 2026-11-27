@@ -53,6 +53,35 @@ class EvaluationFormatTests(unittest.TestCase):
                 self.assertEqual(len(result['checks']), 2)
                 self.assertIn(path, model.complete.call_args_list[1].args[0])
 
+    def test_unknown_basis_retry_sees_the_invalid_item_and_keeps_the_guard(self):
+        invalid = valid_result()
+        invalid['checks'][0]['basis'] = 'unknown'
+        model, result = self.complete(invalid, valid_result())
+        first, second = model.complete.call_args_list
+        self.assertNotIn('repair_context', first.args[1])
+        context = second.args[1]['repair_context']
+        self.assertEqual(context['path'], 'checks[0].basis')
+        self.assertEqual(context['previous_invalid_check']['status'], '满足')
+        self.assertEqual(context['previous_invalid_check']['basis'], 'unknown')
+        self.assertIn('不得仅为通过校验', second.args[0])
+        self.assertEqual(result['checks'][0]['basis'], 'explicit')
+
+    def test_insufficient_experience_retry_sees_the_declared_duration(self):
+        invalid = valid_result()
+        invalid['checks'][0].update(
+            condition='4年以上机器视觉开发经验',
+            reasoning='相关经历累计44个月，满足4年要求。')
+        corrected = deepcopy(invalid)
+        corrected['checks'][0].update(
+            status='不满足', reasoning='相关经历累计44个月，低于48个月要求。')
+        model, result = self.complete(invalid, corrected)
+        second = model.complete.call_args_list[1]
+        context = second.args[1]['repair_context']
+        self.assertEqual(context['path'], 'checks[0].reasoning')
+        self.assertIn('44个月', context['previous_invalid_check']['reasoning'])
+        self.assertIn('真实累计月数低于最低要求', second.args[0])
+        self.assertEqual(result['checks'][0]['status'], '不满足')
+
     def test_missing_null_and_empty_supplemental_fields_are_repaired_without_invention(self):
         for field in ('capability', 'reasoning', 'question'):
             for form in ('missing', 'null', 'blank'):

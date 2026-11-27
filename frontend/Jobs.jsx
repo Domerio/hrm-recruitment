@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRightOutlined, EditOutlined, FileTextOutlined, SearchOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Col, Empty, Flex, Form, Input, Row, Table, Tag, Typography, Upload } from 'antd';
 import PriorityEditor, { jobRequirements, prepareJobRequirements, PrioritySummary, reconcilePriorityGroups } from './PriorityEditor';
+import PlatformSearchConditions, { PlatformSearchSummary } from './PlatformSearchConditions';
+import {defaultSearchConditions,prepareSearchConditions,validateSearchConditions} from './platform-search-conditions.mjs';
 
 const { Paragraph, Text } = Typography;
 const required = message => [{ required: true, whitespace: true, message }];
@@ -11,6 +13,7 @@ const mustHaveText = value => mustHaveLines(value).join('\n');
 const jobValues = job => ({
   title: job.title || '', city: job.city || '', jd: job.jd || '',
   ...prepareJobRequirements(job),
+  search_conditions: prepareSearchConditions(job.search_conditions),
 });
 const mustHaveRule = {
   validator: (_, value) => {
@@ -185,7 +188,8 @@ export default function Jobs({ state, refresh, api, notify, onViewCandidates }) 
     return run('save', async () => {
       const items = jobRequirements(values.criteria, values.must_have);
       const payload = { ...values, must_have: items.filter(item => item.required).map(item => item.text).join('\n'),
-        requirements_mode:'selected', priority_groups:reconcilePriorityGroups(values.priority_groups, items) };
+        requirements_mode:'selected', priority_groups:reconcilePriorityGroups(values.priority_groups, items),
+        search_conditions:validateSearchConditions(values.search_conditions) };
       const response = await api(editing ? '/api/jobs/update' : '/api/jobs', editing
         ? { ...payload, id: editing.id, revision: editing.revision } : payload);
       const result = await response.json();
@@ -213,7 +217,8 @@ export default function Jobs({ state, refresh, api, notify, onViewCandidates }) 
           <Paragraph type="secondary">{editing
             ? '正在编辑配置 #' + editing.id + '。修改后保存即可应用新的岗位要求。'
             : '导入或填写岗位 JD，在统一岗位要求中勾选必备条件并调整优先级。'}</Paragraph>
-          <Form name="job-config" form={form} layout="vertical" onFinish={saveJob} disabled={pending !== null}>
+          <Form name="job-config" form={form} layout="vertical" onFinish={saveJob} disabled={pending !== null}
+            initialValues={{search_conditions:defaultSearchConditions()}}>
             <Row gutter={12}>
               <Col xs={24} sm={12}>
                 <Form.Item name="title" label="岗位名称" rules={required('请输入岗位名称。')}>
@@ -226,6 +231,9 @@ export default function Jobs({ state, refresh, api, notify, onViewCandidates }) 
                 </Form.Item>
               </Col>
             </Row>
+            <Form.Item name="search_conditions" rules={[{validator:async (_,value) => {validateSearchConditions(value);}}]}>
+              <PlatformSearchConditions disabled={pending !== null}/>
+            </Form.Item>
             <Form.Item label="上传岗位文档">
               <Upload.Dragger accept=".docx,.txt" beforeUpload={importFile} showUploadList={false}
                 disabled={pending !== null} aria-label="上传岗位文档">
@@ -291,6 +299,8 @@ export default function Jobs({ state, refresh, api, notify, onViewCandidates }) 
                     <Paragraph className="job-criteria">{job.jd || '未填写岗位 JD'}</Paragraph>
                     <h3>要求优先级</h3>
                     <PrioritySummary job={job} />
+                    <h3>平台查询条件</h3>
+                    <PlatformSearchSummary value={job.search_conditions}/>
                   </div>
                 ),
               }}

@@ -1,0 +1,86 @@
+.chat-resume-sources {
+  --resume-accent: #146d65;
+  --resume-muted: #687b87;
+  margin: 18px 0;
+  min-width: 0;
+  container: chat-resumes / inline-size;
+  color: #263c49;
+  font: 14px/1.7 Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.chat-resume-section-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.chat-resume-section-heading h5.ant-typography { margin: 0; color: #243744; font-size: 16px; font-weight: 650; }
+.chat-resume-count { min-width: 25px; padding: 0 7px; border-radius: 6px; background: #edf4f3; color: var(--resume-accent); font-size: 12px; font-weight: 600; text-align: center; }
+.chat-resume-section-description.ant-typography { margin: 0 0 16px; color: var(--resume-muted); font-size: 13px; line-height: 1.7; }
+.chat-resume-source-list.ant-collapse { display: grid; gap: 12px; border: 0; background: transparent; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item { overflow: hidden; border: 1px solid #e0e7eb; border-radius: 10px; background: #fff; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-header { align-items: center; gap: 12px; padding: 15px 18px; border-radius: 10px; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-header:hover { background: #f8fafb; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item-active > .ant-collapse-header { background: #f7faf9; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-header .ant-collapse-title { min-width: 0; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-header .ant-collapse-expand-icon { color: #83939c; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-panel { border-top: 1px solid #eaf0f2; }
+.chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-panel > .ant-collapse-body { padding: 18px 20px 20px; }
+.chat-resume-source-heading { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; }
+.chat-resume-source-icon { display: grid; width: 38px; height: 42px; place-items: center; border: 1px solid #e1e9ee; border-radius: 9px; background: #f1f5f9; color: #52718c; font-size: 20px; }
+.chat-resume-source-icon.is-attachment { border-color: #dcebe6; background: #eaf4f0; color: var(--resume-accent); }
+.chat-resume-source-title { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.chat-resume-source-title > strong { color: #243744; font-size: 15px; font-weight: 600; line-height: 1.5; }
+.chat-resume-source-title > span { color: var(--resume-muted); font-size: 12px; line-height: 1.5; }
+.chat-resume-heading-divider { margin-inline: 7px; color: #b1bec5; }
+.chat-resume-score { display: grid; justify-items: end; gap: 2px; padding-inline-start: 14px; color: var(--resume-accent); white-space: nowrap; font-size: 12px; line-height: 1.3; }
+.chat-resume-score-label { color: var(--resume-muted); font-size: 11px; }
+.chat-resume-score strong { font-size: 25px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.6px; }
+.chat-resume-pending-tag.ant-tag { margin: 0; }
+.chat-resume-source-body { display: grid; gap: 18px; min-width: 0; overflow-wrap: anywhere; }
+.chat-resume-source-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.chat-resume-source-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--resume-muted); font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.chat-resume-source-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat-resume-source-actions .ant-btn { font-size: 13px; }
+.chat-resume-source-body h4 { margin: 0 0 9px; color: #2c4451; font-size: 14px; line-height: 1.6; font-weight: 600; }
+.chat-resume-evaluation-summary { padding: 14px 16px; border: 1px solid #dfebe7; border-radius: 8px; background: #f1f7f5; }
+.chat-resume-evaluation-summary h4 { margin-bottom: 5px; color: var(--resume-accent); }
+.chat-resume-evaluation-summary .ant-typography { margin: 0; color: #354d59; font-size: 14px; line-height: 1.85; }
+.chat-resume-evaluation-section > h4 { display: flex; align-items: center; gap: 9px; }
+.chat-resume-evaluation-section > h4 > span { color: #85959e; font-size: 12px; font-weight: 400; }
+.chat-resume-checks { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.chat-resume-checks > li { min-width: 0; padding: 13px 15px; border: 1px solid #e8edf0; border-radius: 8px; }
+.chat-resume-check-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 9px 14px; }
+.chat-resume-check-heading > strong { min-width: 0; color: #334c59; font-size: 14px; font-weight: 600; line-height: 1.75; }
+.chat-resume-check-heading .ant-tag { flex: none; margin: 2px 0 0; font-size: 12px; line-height: 20px; }
+.chat-resume-evidence { min-width: 0; margin-top: 10px; padding: 10px 12px; border-left: 2px solid #dce6e8; border-radius: 0 5px 5px 0; background: #f8fafb; }
+.chat-resume-evidence-label { display: block; margin-bottom: 5px; color: #82939e; font-size: 11px; line-height: 1.5; }
+.chat-resume-evidence .chat-resume-evidence-text { margin: 0; color: #566e7b; font-size: 13px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-resume-evidence.is-collapsed .chat-resume-evidence-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.chat-resume-evidence-toggle { display: inline-flex; margin-top: 7px; padding: 1px 0; border: 0; background: transparent; color: var(--resume-accent); font: inherit; font-size: 12px; cursor: pointer; }
+.chat-resume-evidence-toggle:hover { text-decoration: underline; }
+.chat-resume-evidence-toggle:focus-visible { outline: 2px solid var(--resume-accent); outline-offset: 3px; border-radius: 2px; }
+.chat-resume-questions { padding: 13px 15px; border: 1px solid #eee6d7; border-radius: 8px; background: #fffcf6; }
+.chat-resume-questions h4 { color: #856a3b; }
+.chat-resume-questions ul { margin: 0; padding-inline-start: 19px; color: #687782; font-size: 13px; line-height: 1.85; }
+.chat-resume-questions li + li { margin-top: 5px; }
+.chat-resume-evaluation-note.ant-typography { color: #82939e; font-size: 12px; }
+.chat-resume-original.ant-collapse { border-color: #e6ebee; border-radius: 7px; background: #f8fafb; }
+.chat-resume-original.ant-collapse > .ant-collapse-item > .ant-collapse-header { color: #586f7b; font-size: 13px; }
+.chat-resume-original .communication-attachment-text { max-height: 420px; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #415a68; font: 13px/1.85 Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+@container chat-resumes (max-width: 420px) {
+  .chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-header { gap: 8px; padding: 13px 14px; }
+  .chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-panel > .ant-collapse-body { padding: 14px; }
+  .chat-resume-source-heading { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 9px; }
+  .chat-resume-source-icon { width: 32px; height: 38px; font-size: 18px; }
+  .chat-resume-score { padding-inline-start: 3px; }
+  .chat-resume-score strong { font-size: 22px; }
+  .chat-resume-source-title > strong { font-size: 14px; }
+  .chat-resume-check-heading { flex-wrap: wrap; gap: 5px; }
+  .chat-resume-checks > li { padding: 11px 12px; }
+}
+@media (max-width: 600px) {
+  .chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-header { gap: 8px; padding: 13px 14px; }
+  .chat-resume-source-list.ant-collapse > .ant-collapse-item > .ant-collapse-panel > .ant-collapse-body { padding: 14px; }
+  .chat-resume-source-heading { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 9px; }
+  .chat-resume-source-icon { width: 32px; height: 38px; font-size: 18px; }
+  .chat-resume-score { padding-inline-start: 3px; }
+  .chat-resume-score strong { font-size: 22px; }
+  .chat-resume-source-title > strong { font-size: 14px; }
+  .chat-resume-check-heading { flex-wrap: wrap; gap: 5px; }
+  .chat-resume-checks > li { padding: 11px 12px; }
+}

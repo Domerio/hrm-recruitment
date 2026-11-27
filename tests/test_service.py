@@ -21,7 +21,7 @@ class ServiceTests(unittest.TestCase):
             thread=threading.Thread(target=http.serve_forever,daemon=True);thread.start()
             try:
                 with urllib.request.urlopen(f'http://127.0.0.1:{http.server_port}/api/health') as r:health=json.load(r)
-                self.assertEqual(health,{'version':server.APP_VERSION,'capture_version':1,'dom_snapshot_version':1,'pid':server.os.getpid()})
+                self.assertEqual(health,{'version':server.APP_VERSION,'capture_version':1,'dom_snapshot_version':1,'pid':server.os.getpid(),'bind_host':'127.0.0.1'})
             finally:
                 http.shutdown();thread.join()
 
@@ -69,8 +69,26 @@ class ServiceTests(unittest.TestCase):
             launch.assert_not_called()
 
     def test_start_reuses_one_healthy_service(self):
-        with patch.object(control,'listeners',return_value=[123]),patch.object(control,'verified_processes',return_value=[Mock()]),patch.object(control,'health',return_value={'version':server.APP_VERSION,'pid':123,'capture_version':1}),patch.object(control,'launch') as launch:
+        process = Mock(pid=123)
+        process.exe.return_value = sys.executable
+        process.cwd.return_value = str(control.ROOT)
+        process.cmdline.return_value = [sys.executable, '-u', str(control.SCRIPT)]
+        with patch.object(control,'listeners',return_value=[123]),patch.object(control,'verified_processes',return_value=[process]),patch.object(control,'health',return_value={'version':server.APP_VERSION,'pid':123,'capture_version':1,'bind_host':control.HOST}),patch.object(control,'launch') as launch:
             self.assertTrue(control.manage('start')['already_running'])
             launch.assert_not_called()
+
+    def test_changed_listener_host_restarts_instead_of_reusing_loopback_service(self):
+        process = Mock(pid=123)
+        with patch.object(control, 'HOST', '0.0.0.0'), \
+                patch.object(control, 'listeners', side_effect=[[123], [123], []]), \
+                patch.object(control, 'verified_processes', return_value=[process]), \
+                patch.object(control, 'belongs_to_project', return_value=True), \
+                patch.object(control.psutil, 'wait_procs', return_value=([], [])), \
+                patch.object(control, 'health', return_value={'version': server.APP_VERSION,
+                    'pid': 123, 'capture_version': 1, 'bind_host': '127.0.0.1'}), \
+                patch.object(control, 'launch', return_value={'pid': 456}) as launch:
+            self.assertEqual(control.manage('start')['pid'], 456)
+            process.terminate.assert_called_once()
+            launch.assert_called_once()
 
 if __name__=='__main__':unittest.main()

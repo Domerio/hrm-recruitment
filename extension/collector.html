@@ -11,52 +11,79 @@
   <header class="extension-header">
     <div class="extension-brand">
       <span class="brand-mark" aria-hidden="true">H</span>
-      <div><h1>候选人批量采集</h1><p>HRM · 从 BOSS 列表逐人保存履历</p></div>
+      <div><h1 id="collector-title">候选人批量采集</h1><p id="collector-subtitle">HRM · 先评估，再保存并收藏</p></div>
     </div>
-    <span class="extension-version">0.5.33</span>
+    <span class="extension-version">0.5.130</span>
   </header>
   <main class="collector-content">
     <section class="panel">
-      <div class="section-heading"><h2>采集设置</h2><span class="subtle-badge">默认持续采集</span></div>
+      <div class="section-heading"><h2 id="settings-heading">采集设置</h2><span id="mode-badge" class="subtle-badge">默认持续采集</span></div>
       <div class="collector-fields">
         <div><label for="job">匹配岗位</label><select id="job"></select></div>
-        <div><label for="limit">采集人数（可选）</label><input id="limit" type="number" min="1" step="1" placeholder="留空不限人数" aria-describedby="collection-mode-help"></div>
+        <div id="batch-limit"><label for="limit">处理人数（可选）</label><input id="limit" type="number" min="1" step="1" placeholder="留空使用对应操作的默认范围" aria-describedby="collection-mode-help backfill-help"></div>
       </div>
-      <p id="collection-mode-help" class="field-help">人数留空时持续采集，自动跳过已完成记录并加载后续列表；暂无新候选人时等待，点击「停止」结束。</p>
-      <div class="collector-options">
+      <p id="collection-mode-help" class="field-help">批量采集支持「推荐牛人」和「搜索」候选人列表，跳过「热搜牛人推荐」区域；聊天列表暂未适配批量采集。人数按本次处理的候选人计算，包含低分未保存者。留空时持续采集，自动跳过已完成记录并加载后续列表；重复卡片暂缓，其他候选人继续；暂无新人时等待，点击「停止」结束。</p>
+      <p id="platform-query-help" class="field-help"></p>
+      <input id="read-mode" type="hidden" value="foreground">
+      <p id="read-mode-help" class="field-help">网页文字和 Canvas 简历均使用前台复制和剪贴板读取；请保持 BOSS 标签页选中。原文或完整性无法确认时暂停。</p>
+      <div id="batch-options" class="collector-options">
+        <div class="collection-policy-fields">
+          <div><label for="save-above">保存并收藏：分数高于</label><input id="save-above" type="number" min="0" max="100" step="any" value="55" required aria-describedby="collection-policy-help"></div>
+        </div>
+        <p class="field-help collection-policy-note">评估分数严格高于保存分数线时，保存履历并自动收藏。评估失败仍保存原文和诊断供重试；未高于分数线时不保存、不收藏，保留采集标记，后续同岗位自动跳过。</p>
         <label class="check" for="share">
           <input id="share" type="checkbox" checked>
-          <span><strong>保存回访二维码</strong><small>保存平台分享卡片，方便后续扫码查看。</small></span>
+          <span><strong>保存回访二维码</strong><small>仅对保存的候选人读取分享图片；页面不支持时暂停，可停止后取消此项再继续。</small></span>
         </label>
-        <label class="check" for="ai">
-          <input id="ai" type="checkbox">
-          <span><strong>AI 岗位匹配</strong><small>将已核对的履历和岗位要求发送给当前配置的 AI 模型。</small></span>
+        <label class="check" for="share-colleague">
+          <input id="share-colleague" type="checkbox" checked>
+          <span><strong>站内转发给同事</strong><small>仅对已保存、收藏已确认且分数严格高于站内转发分数线的候选人操作。收件人按显示名精确且唯一匹配；仅在页面出现「转发成功」时记录完成，结果不明确时暂停。</small></span>
         </label>
+        <label class="check" for="greet-enabled">
+          <input id="greet-enabled" type="checkbox">
+          <span><strong>高分自动打招呼</strong><small>仅推荐列表：AI 评估成功、已保存且收藏确认，评分严格高于保存分数线和下方共用分数线时，完成转发与二维码后使用 BOSS 默认招呼语打招呼。已沟通过不重复发送；结果不明时暂停。</small></span>
+        </label>
+        <div class="collection-policy-fields">
+          <div><label for="share-above">转发 / 打招呼：分数高于</label><input id="share-above" type="number" min="0" max="100" step="any" value="75" required aria-describedby="collection-policy-help"></div>
+          <div><label for="colleague-name">站内收件人显示名</label><input id="colleague-name" type="text" value="蔡女士" maxlength="80" autocomplete="off" spellcheck="false" aria-describedby="collection-policy-help"></div>
+        </div>
+        <p id="collection-policy-help" class="field-help collection-policy-note" aria-live="polite">当前规则：高于 55 分保存并收藏；保存后保留回访二维码，高于 75 分且收藏已确认时站内转发给「蔡女士」。两项分享可分别勾选或都不勾选。设置按岗位保存在本机，开始采集后按本次规则执行。</p>
+        <p class="field-help collection-policy-note">已收藏者不会取消。点击收藏前失败且没有回访二维码或联系方式时，删除本地履历和采集标记，允许重新采集；已发出收藏点击但结果不明，或已确认收藏但工作台确认失败时保留待核对记录。</p>
       </div>
     </section>
     <div class="collector-actions">
       <button id="start" class="primary-button" type="button" disabled>开始采集</button>
+      <button id="backfill-chat" class="secondary-button" type="button" disabled aria-describedby="backfill-help">仅补采聊天入口</button>
+      <button id="evaluate-current" class="secondary-button" type="button" disabled>评估当前简历</button>
       <button id="stop" class="secondary-button" type="button" disabled>停止</button>
-      <a class="workbench-link" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">打开工作台 <span aria-hidden="true">↗</span></a>
+      <a class="workbench-link" id="workbench-link" target="_blank" rel="noopener">打开工作台 <span aria-hidden="true">↗</span></a>
     </div>
+    <p id="backfill-help" class="field-help">仅补采聊天入口：只处理当前推荐列表中已归档且缺少入口的牛人。保存的是候选人标识，不代表当前招聘账号已能聊天；若 BOSS 提示“不在好友列表”，需先在官方简历中核对候选人并手动打招呼。只核对卡片与详情身份，不复制或展开全文，不应用岗位筛选，不重新评估、收藏或转发；人数留空时处理本次列表全部，不自动加载后续列表。请先选择归档时的岗位。</p>
+    <p id="direct-help" class="field-help">单份评估：打开一份在线简历后，可直接评估网页文字或 Canvas 简历。读取时请保持 BOSS 标签页选中；核对页首身份和完整正文后评估。结果仅展示，不入库、不收藏、不添加采集标记。</p>
+    <section id="direct-result" class="panel direct-result" hidden aria-label="当前简历评估结果" aria-live="polite"></section>
     <section class="panel collection-status" aria-labelledby="collection-status-heading">
       <div class="section-heading"><h2 id="collection-status-heading">运行状态</h2><span class="status-caption">实时更新</span></div>
-      <p id="status" class="status-message" role="status" aria-live="polite">正在连接本地工作台…</p>
+      <p id="status" class="status-message" role="status" aria-live="polite">正在连接工作台…</p>
+      <p id="input-help" class="field-help" hidden>自动读取时请暂勿操作 BOSS 页面的鼠标和键盘；需要操作时先点击停止。</p>
     </section>
     <section id="review" class="panel review-panel" hidden aria-label="重新读取当前候选人">
       <div class="section-heading"><h2>当前候选人需要重试</h2><span class="review-badge">自动校验未通过</span></div>
       <p class="muted">请检查页面展开状态后重新读取，插件会再次校验并自动继续。</p>
       <iframe id="review-preview" class="resume-preview" title="履历预览" sandbox hidden></iframe>
+      <details id="read-diagnostic" class="read-diagnostic" hidden>
+        <summary>查看读取诊断</summary>
+        <pre id="read-diagnostic-text"></pre>
+      </details>
       <div class="review-actions">
         <button id="review-retry" class="secondary-button" type="button">重新读取并校验</button>
       </div>
     </section>
-    <section class="panel results-panel" aria-labelledby="results-heading">
+    <section id="batch-results" class="panel results-panel" aria-labelledby="results-heading">
       <div class="section-heading"><h2 id="results-heading">候选人进度</h2><span class="status-caption">按列表顺序处理</span></div>
       <ol id="results"></ol>
       <p class="results-empty">开始采集后，这里会逐人显示保存结果。</p>
     </section>
-    <p class="collector-guidance">采集前请打开 BOSS 候选人小卡片列表。插件会自动校验完整性，通过后保存并处理下一位。读取期间保持原标签页打开，展开或复制异常时可重新读取。</p>
+    <p id="collector-guidance" class="collector-guidance">采集前请人工登录 BOSS 并打开「推荐牛人」或「搜索」候选人列表。插件通过前台复制核对原文，评估并按本次分数和分享规则处理后继续下一位。聊天中已打开的单份简历可使用「评估当前简历」。请保持 BOSS 标签页处于前台，采集窗口保持打开；登录失效或人工验证时，需要手动恢复后重试。</p>
   </main>
   <script type="module" src="collector.js"></script>
 </body>

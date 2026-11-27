@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BOSS 聊天网络记录 · HRM</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body{padding:20px;min-width:620px}
+    main{max-width:1000px;margin:auto;display:grid;gap:14px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .intro{color:var(--muted)}
+    #results{display:grid;gap:10px}
+    .record{padding:12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+    .record h3{margin:0 0 8px;font:600 13px/1.5 Consolas,monospace;overflow-wrap:anywhere}
+    .record p{margin:3px 0;overflow-wrap:anywhere}
+    .record code{font:12px/1.5 Consolas,monospace}
+    .record .link{color:var(--accent);word-break:break-all}
+    .empty{padding:18px;border:1px dashed var(--line);border-radius:8px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <main>
+    <div><h1>BOSS 聊天网络记录</h1><p class="intro">点“开始记录”，授权后在目标 BOSS 标签页正常打开聊天。被动记录该标签页的接口地址、参数名称及候选人/岗位标识。最长记录 5 分钟，最多保留最近 300 条。</p></div>
+    <div class="actions">
+      <button id="start" class="primary-button" type="button">开始记录</button>
+      <button id="stop" class="secondary-button" type="button" disabled>停止记录</button>
+      <button id="copy" class="secondary-button" type="button" disabled>复制检查结果</button>
+      <button id="clear" class="secondary-button" type="button">清空结果</button>
+    </div>
+    <p id="status" class="status-message" role="status" aria-live="polite">尚未开始。请保持此窗口打开。</p>
+    <p class="field-help">不连接页面调试器，不读取请求头、请求正文、响应正文或聊天内容。只记录 zhipin.com 的 HTTPS 请求与 WebSocket 握手，不读取 WebSocket 消息帧。实际发送需由你自行操作；单次记录不能证明接口唯一。</p>
+    <p class="field-help">地址栏变化会单独记录，隐藏非标识参数值；这只是已观察路由，不是已验证的永久聊天链接。需要重新打开并核对同一候选人和岗位，不能仅凭内部 ID 拼接网址。</p>
+    <div id="results"><div class="empty">暂无记录。开始后请在 BOSS 打开聊天。</div></div>
+  </main>
+  <script type="module" src="network-inspector.js"></script>
+</body>
+</html>

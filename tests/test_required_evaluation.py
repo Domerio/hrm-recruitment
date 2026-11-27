@@ -178,6 +178,7 @@ class RequiredEvaluationCacheTests(unittest.TestCase):
     def handler(self):
         responses = []
         handler = server.Handler.__new__(server.Handler)
+        handler.headers = {}
         handler.send = lambda status, data, *args, **kwargs: responses.append((status, data))
         return handler, responses
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ApartmentOutlined, LinkOutlined, TeamOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, LinkOutlined, MessageOutlined, TeamOutlined } from '@ant-design/icons';
 import { Alert, App, Breadcrumb, Button, ConfigProvider, Layout, Menu, Spin, Tag, Typography } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import 'antd/dist/reset.css';
@@ -8,6 +8,8 @@ import './workbench.css';
 import Candidates from './Candidates';
 import Jobs from './Jobs';
 import Connections from './Connections';
+import Communications from './Communications';
+import { browserExtensionState } from './browser-extension.mjs';
 
 const views = {
   candidates: {
@@ -16,6 +18,13 @@ const views = {
     description: '查看候选人、核对评估依据并记录复核结果。',
     icon: <TeamOutlined aria-hidden="true" />,
     Component: Candidates,
+  },
+  communications: {
+    label: '沟通记录',
+    mobileLabel: '沟通',
+    description: '查看已导入的聊天记录，并关联保存收到的附件简历。',
+    icon: <MessageOutlined aria-hidden="true" />,
+    Component: Communications,
   },
   jobs: {
     label: '岗位与筛选条件',
@@ -27,7 +36,7 @@ const views = {
   connections: {
     label: '连接与集成',
     mobileLabel: '连接设置',
-    description: '管理 Edge 扩展授权、API 地址、密钥与评估模型。',
+    description: '下载采集插件并授权连接，管理 API 地址、密钥与评估模型。',
     icon: <LinkOutlined aria-hidden="true" />,
     Component: Connections,
   },
@@ -65,12 +74,12 @@ function Workbench() {
   const refresh = useCallback(async () => {
     const sequence = ++readSequence.current;
     const response = await fetch('/api/state', { cache: 'no-store' });
-    if (!response.ok) throw new Error('无法读取工作台数据，请确认本地服务已启动。');
+    if (!response.ok) throw new Error('无法读取工作台数据，请确认工作台服务已启动。');
     const data = await response.json();
     if (sequence > latestRead.current) {
       latestRead.current = sequence;
       token.current = data.token;
-      setState(data);
+      setState(browserExtensionState(data));
       setLoadError('');
     }
     return data;
@@ -78,9 +87,9 @@ function Workbench() {
 
   const api = useCallback(async (path, data) => {
     const response = await fetch(path, {
-      method: 'POST',
+      method: data === undefined ? 'GET' : 'POST',
       headers: { 'Content-Type': 'application/json', 'X-App-Token': token.current },
-      body: JSON.stringify(data),
+      ...(data === undefined ? { cache: 'no-store' } : { body: JSON.stringify(data) }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
@@ -108,6 +117,8 @@ function Workbench() {
     setView('candidates');
     window.scrollTo({ top: 0 });
   }
+  const ActiveView = views[view].Component;
+
   return (
     <Layout className="workbench">
       <Layout.Sider className="workbench-sider" width={226} theme="light">
@@ -134,20 +145,20 @@ function Workbench() {
               <Typography.Text type="secondary">{views[view].description}</Typography.Text>
             </div>
             {view === 'candidates' && <Button icon={<LinkOutlined aria-hidden="true" />}
-              onClick={() => setView('connections')}>采集设置</Button>}
+              onClick={() => setView('connections')}>插件下载与设置</Button>}
           </div>
           {loadError && (
             <Alert className="workbench-load-error" type="error" showIcon title={loadError}
               action={<Button size="small" onClick={load}>重试加载</Button>} />
           )}
           {!state && !loadError && <div className="workbench-loading"><Spin aria-label="加载工作台" /></div>}
-          {state && Object.entries(views).map(([key, { Component }]) => (
-            <section key={key} id={key} hidden={view !== key}>
-              <Component state={state} refresh={refresh} api={api} notify={notify}
-                active={view === key} onNavigate={setView}
-                onViewCandidates={viewJobCandidates} candidateJobRequest={candidateJobRequest} />
+          {state && (
+            <section id={view}>
+              <ActiveView state={state} refresh={refresh} api={api} notify={notify}
+                active onNavigate={setView} onViewCandidates={viewJobCandidates}
+                candidateJobRequest={candidateJobRequest} />
             </section>
-          ))}
+          )}
         </Layout.Content>
         <Layout.Footer className="workbench-footer">
           <span>HRM 招聘辅助模块 {state?.version && <span>· {state.version}</span>}</span>

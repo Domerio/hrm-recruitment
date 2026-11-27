@@ -12,22 +12,31 @@
       <span class="brand-mark" aria-hidden="true">H</span>
       <div><h1>候选人助手</h1><p>HRM · BOSS 简历采集</p></div>
     </div>
-    <span class="extension-version">0.5.33</span>
+    <span class="extension-version">0.5.130</span>
   </header>
   <main class="popup-content">
-    <section class="panel popup-launch">
-      <h2>从当前列表开始</h2>
-      <p class="muted">在已登录的 BOSS 候选人列表打开采集窗口，选择岗位后逐人保存履历。</p>
-      <button id="open-collector" class="primary-button full-width" type="button">打开批量采集窗口 <span aria-hidden="true">↗</span></button>
-    </section>
-    <section class="panel">
-      <div class="section-heading"><h2>连接工作台</h2><span class="subtle-badge">首次使用</span></div>
+    <section class="panel popup-connection">
+      <div class="section-heading"><h2>连接工作台</h2><span class="subtle-badge">地址已自动配置</span></div>
+      <label for="workbench-origin">工作台地址</label>
+      <input id="workbench-origin" readonly value="正在读取…" spellcheck="false" aria-describedby="workbench-origin-help">
+      <p id="workbench-origin-help" class="field-help">来自下载安装包时访问的工作台地址，无需填写。请确保当前电脑能访问此地址。</p>
+      <button id="connect-workbench" class="primary-button full-width" type="button" disabled>连接工作台</button>
       <label for="extension-id">扩展 ID</label>
       <input id="extension-id" class="extension-id" readonly spellcheck="false" aria-describedby="extension-id-help">
-      <p id="extension-id-help" class="field-help">复制到工作台「连接与集成」中完成授权。</p>
+      <p id="extension-id-help" class="field-help">首次使用：复制此 ID 到工作台「连接与集成」中授权，再点击上方“连接工作台”。</p>
+    </section>
+    <section class="panel popup-launch">
+      <h2>从当前列表开始</h2>
+      <p class="muted">批量采集支持 BOSS「推荐牛人」和「搜索」候选人列表，跳过热搜推荐区域。选择岗位后可设置保存分数线，以及回访二维码、站内转发两种分享方式。</p>
+      <button id="open-collector" class="primary-button full-width" type="button">打开批量采集窗口 <span aria-hidden="true">↗</span></button>
+      <button id="open-current" class="secondary-button full-width" type="button" style="margin-top:10px">评估当前已打开的简历 <span aria-hidden="true">↗</span></button>
+      <button id="open-favorite-finder" class="secondary-button full-width" type="button" style="margin-top:10px">定位收藏牛人 <span aria-hidden="true">↗</span></button>
+      <button id="open-network-inspector" class="secondary-button full-width" type="button" style="margin-top:10px">记录聊天网络地址（被动） <span aria-hidden="true">↗</span></button>
+      <button id="open-communications" class="secondary-button full-width" type="button" style="margin-top:10px">沟通记录与简历采集 <span aria-hidden="true">↗</span></button>
+      <p class="field-help">聊天中已打开的网页文字或 Canvas 在线简历可使用单份评估；聊天列表暂未适配批量采集。读取时请保持 BOSS 标签页选中；原文或完整性无法确认时暂停。单份评估结果仅在评估窗口展示。</p>
     </section>
     <p id="status" class="status-message" role="status" aria-live="polite"></p>
-    <a class="workbench-link" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">打开本地工作台 <span aria-hidden="true">↗</span></a>
+    <a id="open-workbench" class="workbench-link" aria-disabled="true" target="_blank" rel="noopener">打开工作台 <span aria-hidden="true">↗</span></a>
   </main>
   <script type="module" src="popup.js"></script>
 </body>

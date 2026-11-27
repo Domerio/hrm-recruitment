@@ -30,6 +30,24 @@ _SCHOOL_MODE = re.compile(r'^\s*(?:[·•/、|｜]\s*)?(?:非全日制|全日制
 _SALARY = re.compile(r'^(?:薪资)?面议$|\d+(?:\.\d+)?\s*[-~～至]?\s*\d*(?:\.\d+)?\s*[kKwW千万元]')
 _LOCATION_LABEL = re.compile(r'^(?:当前城市|现居城市|现居地|现居住地|所在城市|所在地|居住地|期望城市|意向城市)\s*[:：]\s*(.+)$')
 _SEPARATORS = re.compile(r'\s*[·•|｜;；]\s*|\t+| {2,}')
+_INLINE_HEADING = re.compile(r'^(' + '|'.join(map(re.escape, sorted(_HEADINGS, key=len, reverse=True))) +
+                             r')(?:\s*[：:]\s*|\s+)(\S.*)$')
+_METADATA_SEPARATOR = r'(?:\s*[·•|｜]\s*|\s+)'
+_METADATA = re.compile(r'(?:\d{1,2}岁' + _METADATA_SEPARATOR + r')?'
+                       r'(?:\d{1,2}(?:\.\d)?年(?:以上)?(?:经验)?|应届生?)' + _METADATA_SEPARATOR +
+                       r'(?:' + _DEGREE.pattern + r')(?:\s*[·•/、|｜]?\s*(?:非全日制|全日制|在读|成人教育|自考|函授))?'
+                       r'(?:' + _METADATA_SEPARATOR + r'(?:在职|离职|应届)(?:[-－—][^\s。；;！？!?]{1,16})?)?')
+_INTENT_PROSE = re.compile(r'^(?:希望|期望|意向|寻求|寻找|想|从事|具备|熟悉|掌握|要求|优先)')
+# One-space canvas columns are ambiguous without coordinates. Recognize common
+# city tokens conservatively here; unknown places still need an explicit label
+# or the existing strong column separators, never arbitrary Chinese prose.
+_COMPACT_CITIES = frozenset(('北京 上海 天津 重庆 广州 深圳 珠海 汕头 佛山 东莞 中山 惠州 江门 '
+    '杭州 宁波 温州 绍兴 嘉兴 湖州 金华 台州 丽水 舟山 衢州 南京 苏州 无锡 常州 南通 扬州 '
+    '镇江 泰州 盐城 徐州 连云港 淮安 宿迁 合肥 芜湖 蚌埠 马鞍山 安庆 滁州 铜陵 黄山 '
+    '济南 青岛 烟台 威海 潍坊 淄博 郑州 洛阳 武汉 宜昌 襄阳 长沙 株洲 湘潭 衡阳 '
+    '成都 绵阳 德阳 西安 咸阳 宝鸡 福州 厦门 泉州 漳州 莆田 南昌 赣州 九江 '
+    '南宁 桂林 柳州 贵阳 昆明 海口 三亚 石家庄 保定 唐山 太原 呼和浩特 沈阳 大连 '
+    '长春 哈尔滨 兰州 银川 西宁 乌鲁木齐 拉萨 香港 澳门 台湾').split())
 
 
 def _norm(value):
@@ -42,7 +60,24 @@ def _heading(value):
 
 
 def _lines(text):
-    return [line.strip() for line in text.splitlines() if line.strip()]
+    # Canvas paints the section gutter and its first row on one baseline. Split
+    # those explicit labels only in this parser's view, retaining each original
+    # row as source evidence. Do not reflow or change the saved resume / AI input.
+    lines, evidence = [], []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        heading = _INLINE_HEADING.fullmatch(line)
+        # A recognized gutter always ends the preceding section. An incomplete
+        # inline entry is retained as an opaque original row; field extractors
+        # reject that row, rather than leaking later education into employment.
+        fragments = ((heading[1], heading[2] if _structured_inline(*heading.groups()) else line)
+                     if heading else (line,))
+        for fragment in fragments:
+            lines.append(fragment)
+            evidence.append(line)
+    return lines, evidence
 
 
 def _section_blocks(lines):
@@ -59,6 +94,8 @@ def _section_blocks(lines):
 
 
 def _fragment(value):
+    if _INLINE_HEADING.fullmatch(value):
+        return ''
     value = DATE_RANGE.sub('', value).strip(' \t|｜·•*')
     return value if value and len(value) <= 200 and not _PROSE.match(_norm(value)) and not re.search(r'[。；;!！?？]', value) else ''
 
@@ -86,22 +123,50 @@ def _company_and_tail(value):
     return '', ''
 
 
+def _structured_inline(section, content):
+    if section not in _WORK | _EDUCATION:
+        return True
+    # A section word embedded in prose is not a gutter. Require the complete
+    # dated row shape before promoting its content into employment / education.
+    dates = list(DATE_RANGE.finditer(content))
+    if len(dates) != 1 or dates[0].end() != len(content):
+        return False
+    prefix = content[:dates[0].start()]
+    if not prefix or not prefix[-1].isspace():
+        return False
+    header = prefix.strip(' \t|｜·•')
+    if (not 2 <= len(header) <= 180 or _PROSE.match(header) or _INTENT_PROSE.match(header) or
+            re.search(r'[，,。；;：:!?！？]', header)):
+        return False
+    if section in _WORK:
+        company, role = _company_and_tail(header)
+        return bool(company and role and _ROLE.search(role) and
+                    re.match(r'^[\s|｜·•]', header[len(company):]))
+    school = re.match(r'^[^\s|｜·•]{2,80}(?:大学|学院|学校|中学|技校|职校|研究院|研究所)[\s|｜·•]+(.+)$', header)
+    if not school:
+        return False
+    # The school must be followed by a major and a complete terminal degree;
+    # a mention of a degree within a narrative is not an education entry.
+    return bool(re.fullmatch(r'.{1,80}[\s|｜·•]+(?:' + _DEGREE.pattern + r')'
+                             r'(?:\s*[·•/、|｜]?\s*(?:非全日制|全日制|在读|成人教育|自考|函授))?', school[1]))
+
+
 def _header_fields(fragments):
-    company, title, company_evidence, title_evidence = '', '', '', ''
-    for raw in fragments:
+    company, title, company_evidence, title_evidence = '', '', None, None
+    for number, raw in fragments:
         fragment = _fragment(raw)
         if not fragment:
             continue
         employer, tail = _company_and_tail(fragment)
         if employer and not company:
-            company, company_evidence = employer, raw
+            company, company_evidence = employer, number
             if tail and _ROLE.search(tail):
-                title, title_evidence = tail, raw
+                title, title_evidence = tail, number
             continue
         if company and not title:
             role = re.sub(r'^(?:职位|岗位|最近职位|当前职位)\s*[:：]\s*', '', fragment)
             if _ROLE.search(role) and not (employer and not re.search(r'工程师|经理|负责人|总监|主管|专员', role)):
-                title, title_evidence = role, raw
+                title, title_evidence = role, number
     result = {}
     if company:
         result['company'] = (company, company_evidence)
@@ -116,7 +181,7 @@ def _work_profile(lines, sections):
     timeline = build_experience_timeline(lines, date(9999, 12, 31))
     entries = []
     for entry in timeline['entries']:
-        fragments = [lines[number - 1] for number in entry['title_lines']]
+        fragments = [(number - 1, lines[number - 1]) for number in entry['title_lines']]
         fields = _header_fields(fragments)
         if not fields.get('company'):
             continue
@@ -131,7 +196,7 @@ def _work_profile(lines, sections):
     # explicit work section is eligible, never an organization from prose.
     for section, start, end in sections:
         if section in _WORK:
-            return _header_fields(lines[start:min(start + 3, end)])
+            return _header_fields(enumerate(lines[start:min(start + 3, end)], start))
     return {}
 
 
@@ -152,12 +217,12 @@ def _valid_location(value):
 
 def _city(lines, sections):
     header_end = min((start - 1 for _, start, _ in sections), default=len(lines))
-    for line in lines[:header_end]:
+    for number, line in enumerate(lines[:header_end]):
         match = _LOCATION_LABEL.match(line)
         if match:
             value = _valid_location(match[1])
             if value:
-                return value, line
+                return value, number
     for section, start, end in sections:
         if section not in _INTENT or start >= end:
             continue
@@ -166,7 +231,18 @@ def _city(lines, sections):
         candidates = [match[1]] if match else _SEPARATORS.split(line)
         value = _valid_location(candidates[0])
         if value:
-            return value, line
+            return value, start
+        # Canvas separates horizontal columns with one space. A free-text
+        # sentence is insufficient: require a city-sized first field, a role
+        # and a complete terminal salary field in this explicit intent row.
+        words = line.split()
+        if (len(candidates) == 1 and len(words) >= 3 and len(line) <= 200 and
+                _SALARY.fullmatch(words[-1]) and _ROLE.search(' '.join(words[1:-1])) and
+                not _PROSE.match(line) and not _INTENT_PROSE.match(line) and
+                not re.search(r'[。；;:：!?！？]', line)):
+            value = _valid_location(words[0])
+            if value and all(part.removesuffix('市') in _COMPACT_CITIES for part in re.split(r'[/、]', value)):
+                return value, start
     return None
 
 
@@ -187,29 +263,31 @@ def _education(lines, sections):
     candidates = []
     for index in indices:
         line = lines[index]
-        if len(line) > 200 or re.search(r'[。;；!！?？]', line) or _PROSE.match(_norm(line)):
+        if (_INLINE_HEADING.fullmatch(line) or len(line) > 200 or
+                re.search(r'[。;；!！?？]', line) or _PROSE.match(_norm(line))):
             continue
         for match in _DEGREE.finditer(line):
             before, after = line[:match.start()], line[match.end():]
             # Exclude wish-list prose such as "希望本科以上团队".
-            if index < header_end and before and not re.search(r'学历\s*[:：]\s*$|[·•|｜\t]\s*$', before):
+            if (index < header_end and before and not _METADATA.fullmatch(_norm(line)) and
+                    not re.search(r'学历\s*[:：]\s*$|[·•|｜\t]\s*$', before)):
                 continue
             if re.match(r'^以上|^以下|^及以上|^优先|^要求', after):
                 continue
             mode = _SCHOOL_MODE.match(after)
             value = match.group() + (mode.group() if mode else '')
-            candidates.append(((_degree_rank(value), bool(mode), -index), (value.strip(), line)))
+            candidates.append(((_degree_rank(value), bool(mode), -index), (value.strip(), index)))
     return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
 def _skill_tags(lines, sections):
-    tags, seen, first_evidence = [], set(), ''
+    tags, seen, first_evidence = [], set(), None
     work_headers = set()
     for entry in build_experience_timeline(lines, date(9999, 12, 31))['entries']:
         numbers = [number - 1 for number in entry['title_lines']]
-        fields = _header_fields([lines[number] for number in numbers])
+        fields = _header_fields([(number, lines[number]) for number in numbers])
         evidence = {item[1] for item in fields.values()}
-        selected = [number for number in numbers if lines[number] in evidence]
+        selected = [number for number in numbers if number in evidence]
         if selected:
             selected.append(entry['date_line'] - 1)
             work_headers.update(range(min(selected), max(selected) + 1))
@@ -241,8 +319,8 @@ def _skill_tags(lines, sections):
                     if key not in seen and len('\n'.join(tags + [tag])) <= LIMITS['skills']:
                         seen.add(key)
                         tags.append(tag)
-                if not first_evidence:
-                    first_evidence = run[0]
+                if first_evidence is None:
+                    first_evidence = begin
             index = max(index, begin + 1)
     return ('\n'.join(tags), first_evidence) if tags else None
 
@@ -267,7 +345,7 @@ def extract_candidate_profile_with_sources(resume, resume_html=''):
             return empty
     if not resume.strip() or len(resume) > 30000:
         return empty
-    lines = _lines(resume)
+    lines, original_rows = _lines(resume)
     sections = _section_blocks(lines)
     fields = _work_profile(lines, sections)
     for field, result in [('city', _city(lines, sections)), ('education', _education(lines, sections)),
@@ -279,7 +357,7 @@ def extract_candidate_profile_with_sources(resume, resume_html=''):
         if field in fields and fields[field][0] and len(fields[field][0]) <= LIMITS[field]:
             value, evidence = fields[field]
             profile[field] = value
-            sources[field] = {'source': 'resume', 'evidence': evidence[:1000]}
+            sources[field] = {'source': 'resume', 'evidence': original_rows[evidence][:1000]}
     return {'profile': profile, 'profile_sources': sources}
 
 

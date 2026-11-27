@@ -1,0 +1,60 @@
+.communications { display: grid; gap: 16px; min-width: 0; container: communications / inline-size; }
+.communications-toolbar .ant-card-body { padding: 16px; }
+.communications-filters { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.communications-filter { display: grid; gap: 6px; min-width: 180px; }
+.communications-filter > label { color: #405363; font-size: 13px; }
+.communications-filter .ant-select { width: 100%; }
+.communications-search { flex: 1; max-width: 380px; }
+.communications-import-help.ant-typography { margin: 12px 0 0; font-size: 13px; }
+.communications-layout { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.communications-list-card, .communications-history-card { min-width: 0; }
+.communications-list-card .ant-card-body { padding: 0; }
+.communications-list { list-style: none; padding: 0; margin: 0; max-height: 690px; overflow-y: auto; }
+.communications-list > li + li { border-top: 1px solid #edf0f2; }
+.communication-choice { display: grid; gap: 6px; width: 100%; padding: 16px; border: 0; border-inline-start: 3px solid transparent; background: #fff; color: #1d2939; text-align: left; font: inherit; cursor: pointer; }
+.communication-choice:hover { background: #f4f9f8; }
+.communication-choice.is-selected { border-inline-start-color: #146d65; background: #eaf5f2; }
+.communication-choice:focus-visible { outline: 2px solid #146d65; outline-offset: -3px; }
+.communication-choice-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.communication-choice-heading .ant-tag { margin-inline-end: 0; font-size: 11px; }
+.communication-choice-meta { color: #667782; font-size: 12px; overflow-wrap: anywhere; }
+.communication-choice-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #405363; font-size: 13px; }
+.communications-list-card .ant-empty { padding: 24px 12px; }
+.communications-history-card .ant-card-body { padding: 20px; }
+.communications-history-card .ant-alert { margin-bottom: 12px; }
+.communication-detail-heading { display: grid; gap: 5px; padding-bottom: 18px; border-bottom: 1px solid #edf0f2; overflow-wrap: anywhere; }
+.communication-detail-heading h4.ant-typography { margin: 0; }
+.communication-detail-heading > .ant-typography:not(h4) { font-size: 13px; }
+.communication-candidate-binding { display: grid; gap: 8px; padding: 12px; margin-top: 8px; border-radius: 6px; background: #f5f8f9; font-size: 13px; }
+.communication-candidate-binding .ant-typography { font-size: 13px; }
+.communication-candidate-binding > label { color: #405363; font-size: 12px; }
+.communication-bind-controls { display: flex; align-items: start; gap: 8px; flex-wrap: wrap; }
+.communication-bind-controls .ant-select { flex: 1; min-width: min(240px, 100%); }
+.communication-messages { display: flex; flex-direction: column; gap: 16px; list-style: none; padding: 20px 0 0; margin: 0; max-height: 650px; overflow-y: auto; overscroll-behavior: contain; }
+.communication-message { align-self: flex-start; min-width: 0; width: fit-content; max-width: 92%; padding: 12px 14px; border: 1px solid #e3e9ed; border-radius: 8px; background: #f8fafb; }
+.communication-message.is-outgoing { align-self: flex-end; background: #edf7f3; border-color: #cfe5dc; }
+.communication-message.is-system { align-self: center; width: 100%; max-width: 100%; background: #fff; border-style: dashed; }
+.communication-message-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 7px; font-size: 12px; }
+.communication-message-heading time { color: #6a7c88; }
+.communication-message-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.communication-attachment { display: grid; gap: 10px; min-width: 0; overflow-wrap: anywhere; }
+.communication-message-text + .communication-attachment { margin-top: 12px; }
+.communication-attachment > .ant-typography { font-size: 12px; }
+.communication-attachment .ant-btn { height: auto; min-height: 24px; white-space: normal; }
+.communication-attachment .ant-upload-wrapper { width: fit-content; }
+.communication-attachment-text { max-height: 350px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0; }
+.communications-detail-empty { display: grid; min-height: 360px; place-items: center; }
+@container communications (max-width: 780px) {
+  .communications-layout { grid-template-columns: minmax(0, 1fr); }
+  .communications-list { max-height: 250px; }
+}
+@media (max-width: 900px) {
+  .communications-layout { grid-template-columns: minmax(0, 1fr); }
+  .communications-list { max-height: 310px; }
+  .communications-history-card .ant-card-body { padding: 14px; }
+}
+@media (max-width: 520px) {
+  .communications-filter { width: 100%; min-width: 0; max-width: none; }
+  .communications-filters > .ant-btn { width: 100%; }
+  .communication-message { max-width: 100%; }
+}

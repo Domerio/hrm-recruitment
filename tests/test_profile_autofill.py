@@ -292,5 +292,51 @@ class ProfileAutofillTests(unittest.TestCase):
         self.assertEqual(candidate['title'], '高级算法工程师')
 
 
+    def test_canvas_inline_sections_populate_imported_fields_with_exact_original_evidence(self):
+        resume = """张**
+34岁 9年 硕士 在职-考虑机会
+期望职位 无锡 图像算法 行业不限 22-40K
+工作经历 示例视觉科技有限公司 图像算法 2017.07 - 2026.11
+负责视觉检测项目研发和交付。
+教育经历 示例大学 机械电子工程 硕士 2014 - 2017"""
+        response = self.post('/api/extension/import', {'job_id': 1, 'candidates': [
+            {'name': '张**', 'resume': resume, 'capture': CAPTURE}]})
+        candidate = self.candidate(response['ids'][0])
+        for field, value in {'company': '示例视觉科技有限公司', 'title': '图像算法',
+                             'city': '无锡', 'education': '硕士'}.items():
+            self.assertEqual(candidate[field], value, field)
+            self.assertIn(candidate['profile_sources'][field]['evidence'], resume.splitlines())
+        self.assertEqual(candidate['resume'], resume)
+        self.model_mock.assert_not_called()
+
+    def test_canvas_backfill_preserves_manual_fields_original_resume_and_saved_evaluation(self):
+        resume = """张**
+34岁 9年 硕士 在职-考虑机会
+期望职位 无锡 图像算法 行业不限 22-40K
+工作经历 示例视觉科技有限公司 图像算法 2017.07 - 2026.11
+负责视觉检测项目研发和交付。
+教育经历 示例大学 机械电子工程 硕士 2014 - 2017"""
+        with server.connect() as db:
+            cur = db.execute("""INSERT INTO candidates(job_id,name,resume,phone,email,link,created)
+                VALUES(1,'旧候选人',?,'','','','fixture')""", (resume,))
+            cid = cur.lastrowid
+            server.bump_profile(db, cid, {'city': '人工确认城市'})
+        self.seed_retained_source(cid)
+        tables = ['candidates', 'candidate_sources', 'candidate_resume_formats', 'evaluations', 'evaluation_inputs']
+        before = self.snapshot(tables)
+        server.init_db()
+        candidate = self.candidate(cid)
+        self.assertEqual(candidate['company'], '示例视觉科技有限公司')
+        self.assertEqual(candidate['title'], '图像算法')
+        self.assertEqual(candidate['education'], '硕士')
+        self.assertEqual(candidate['city'], '人工确认城市')
+        self.assertEqual(candidate['profile_sources']['city']['source'], 'manual')
+        self.assertEqual(self.snapshot(tables), before)
+        after = self.snapshot(tables + ['candidate_profiles', 'candidate_profile_sources', 'audit'])
+        server.init_db()
+        self.assertEqual(self.snapshot(list(after)), after)
+        self.model_mock.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

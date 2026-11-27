@@ -95,6 +95,25 @@ class EducationPolicyApiTests(unittest.TestCase):
         self.assertEqual(status, 201, body)
         self.cid = body['id']
 
+    def create_canvas_candidate(self, education_row, following_rows=()):
+        # Canvas captures put a section label and its first record on one
+        # original line. Display formatting must not be the policy's input.
+        self.edu_quote = education_row
+        self.resume = '\n'.join([
+            '合成画布学历候选人',
+            '工作经历 合成研发公司 软件工程师 2020.01 - 至今',
+            WORK_QUOTE,
+            *[f'第{index}条合成项目记录：完成设备数据处理与验证。' for index in range(1, 13)],
+            education_row,
+            *following_rows,
+            '专业技能 Python',
+        ])
+        status, body = self.post('/api/candidates', {
+            'job_id': 1, 'name': '合成画布学历候选人', 'resume': self.resume,
+        })
+        self.assertEqual(status, 201, body)
+        self.cid = body['id']
+
     def model_answer(self, payload, status='满足', basis='explicit', support=100, reasoning=None):
         numbered = {}
         for line in payload['resume'].splitlines():
@@ -228,6 +247,61 @@ class EducationPolicyApiTests(unittest.TestCase):
         self.assertEqual((result['score'], result['must_have_status']), (100, 'met'))
         self.assertNotIn('education_policy_adjustment', result['checks'][0])
         self.assert_saved(result)
+
+    def assert_inline_graduate_saved_once(self, education_row, bachelor_row):
+        self.create_canvas_candidate(education_row, [bachelor_row])
+        original = self.resume
+        status, result, calls = self.evaluate()
+        self.assertEqual(status, 200, result)
+        self.assertEqual(calls, 1, 'A real inline graduate record must not trigger model repair')
+        self.assertEqual((result['score'], result['must_have_status']), (100, 'met'))
+        for row in (result['checks'][0], result['required_checks'][0]):
+            self.assertEqual((row['status'], row['basis'], row['support_score']), ('满足', 'explicit', 100))
+            self.assertEqual(row['evidence_quotes'], [education_row])
+            self.assertEqual(row['evidence'], education_row)
+            self.assertNotIn('education_policy_adjustment', row)
+        self.assert_saved(result)
+        self.assertEqual(self.candidate()['resume'], original)
+        with server.connect() as db:
+            self.assertEqual(db.execute('SELECT resume FROM candidates WHERE id=?', (self.cid,)).fetchone()[0], original)
+
+    def test_canvas_doctorate_on_education_heading_line_saves_without_repair(self):
+        self.assert_inline_graduate_saved_once(
+            '教育经历 合成大学 计算机科学与技术 博士 2017 - 2025',
+            '合成大学 自动化 本科 2013 - 2017',
+        )
+
+    def test_canvas_master_on_education_heading_line_saves_without_repair(self):
+        self.assert_inline_graduate_saved_once(
+            '教育经历 合成林业大学 机械电子工程学院 硕士 2020 - 2023',
+            '合成学院 机械设计制造及其自动化 本科 2016 - 2020',
+        )
+
+    def test_inline_graduate_detection_does_not_override_model_major_rejection(self):
+        self.create_canvas_candidate('教育经历 合成大学 历史学 硕士 2020 - 2023')
+        reasoning = '该合成学历的专业与本岗位的自动化相关专业要求不符。'
+        status, result, calls = self.evaluate(status='不满足', support=0, reasoning=reasoning)
+        self.assertEqual(status, 200, result)
+        self.assertEqual(calls, 1)
+        self.assertEqual((result['score'], result['must_have_status']), (50, 'not_met'))
+        for row in (result['checks'][0], result['required_checks'][0]):
+            self.assertEqual((row['status'], row['basis'], row['support_score']), ('不满足', 'explicit', 0))
+            self.assertEqual(row['reasoning'], reasoning)
+            self.assertNotIn('education_policy_adjustment', row)
+        self.assert_saved(result)
+
+    def test_inline_work_or_job_heading_cannot_turn_later_quoted_degree_into_a_qualification(self):
+        for heading in ('工作经历 合成培训公司 培训专员 2020 - 2023',
+                        '岗位要求 招聘合成培训教师'):
+            with self.subTest(heading=heading):
+                self.create_canvas_candidate('教育经历 合成学院 机械工程 大专 2015 - 2018', [heading, '硕士'])
+                self.edu_quote = '硕士'  # Exact quotation, but from the wrong section.
+                status, result, calls = self.evaluate()
+                self.assertEqual(status, 422, result)
+                self.assertEqual(result['code'], 'evaluation_format_invalid')
+                self.assertEqual(calls, 2)
+                self.assertEqual(self.counts(), (0, 0))
+                self.assertTrue(self.candidate()['ai_pending'])
 
     def test_no_degree_record_does_not_create_a_degree_or_partial_credit(self):
         self.create_candidate(degree=None)

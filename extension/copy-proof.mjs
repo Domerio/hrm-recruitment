@@ -1,4 +1,4 @@
-import {resumeFoldLabels} from './capture-utils.mjs';
+import {resumeFoldLabels,matchesCandidateNameLine} from './capture-utils.mjs';
 // Proof from fresh clipboard text. Freshness and document identity are checked by the caller.
 const footerStart='为妥善保护牛人在boss直聘平台';
 const footerEnd='在任何第三方平台进行复制使用传播存储';
@@ -9,11 +9,24 @@ function normalized(text){
     .replace(/[\s\u200B-\u200D\uFEFF，,。.;；:：、!！?？]/g,'')
     .replace(/[＊﹡∗]/g,'*');
 }
+// Raw assembly must use precisely the same comparison rules when binding its
+// exact overlap to the full boundary that this proof accepted.
+export {normalized as normalizeClipboardProofText};
 
-function hasHeader(text){
+function hasHeader(text,expectedName=''){
   const lines=String(text||'').split(/\r?\n/).slice(0,8);
+  if(expectedName){
+    const matches=lines.map((line,index)=>matchesCandidateNameLine(line,expectedName)?index:-1).filter(index=>index>=0);
+    if(matches.length!==1)return false;
+    if(/[*＊﹡∗]|先生$|女士$/.test(expectedName))return true;
+    // A bound full name needs the adjacent identity row too. Its education and
+    // experience columns can appear in either order in recommendation layouts.
+    const metadata=normalized(lines.slice(matches[0]+1,matches[0]+4).join(''));
+    return /\d{1,2}岁/.test(metadata)&&/(?:\d{1,2}年(?:以上)?|应届|本科|硕士|博士|大专)/.test(metadata);
+  }
   return lines.some(line=>/^([\p{L}·]{1,20}\*{1,4}|[\p{L}·]{1,12}(?:先生|女士))/u.test(normalized(line).slice(0,160)));
 }
+export {hasHeader as hasClipboardHeader};
 
 function hasFold(text){
   return resumeFoldLabels(text).length>0;
@@ -51,18 +64,50 @@ function uniqueIn(text,anchor){
   return first>=0&&text.indexOf(anchor,first+1)===-1;
 }
 
-function usefulAnchor(anchor){
-  const letters=anchor.match(/[\p{L}\p{N}]/gu)?.join('')||'';
+const contentLetters=text=>text.match(/[\p{L}\p{N}]/gu)||[];
+function substantial(letters){
   if(letters.length<24||new Set(letters).size<8)return false;
   const period=letters.length-prefixTable(letters).at(-1);
-  if(letters.length>=period*2)return false;
-  const fragments=new Set();
+  return letters.length<period*2;
+}
+
+function inspectOverlap(anchor,previous,next,assembly){
+  const letters=contentLetters(anchor);
+  const matches=text=>!anchor?0:!text.includes(anchor)?0:uniqueIn(text,anchor)?1:2;
+  const diagnostic={reason:'accepted',overlapLength:anchor.length,letterCount:letters.length,distinctLetters:new Set(letters).size,
+    duplicateWindows:0,independentRunLength:0,previousMatches:matches(previous),
+    currentMatches:matches(next),assembledMatches:matches(assembly)};
+  if(letters.length<24)return {...diagnostic,reason:'short'};
+  if(!substantial(letters))return {...diagnostic,reason:'repetitive'};
+  // Repeated technical descriptions are common across distinct projects. Mark
+  // every character covered by a repeated 24-letter window, then require a
+  // substantial independent run outside those repeated regions. In particular,
+  // a short separator between two identical paragraphs is still insufficient.
+  const fragments=new Map(),covered=new Int32Array(letters.length+1);
+  const cover=start=>{covered[start]++;covered[start+24]--;};
   for(let i=0;i<=letters.length-24;i++){
-    const fragment=letters.slice(i,i+24);
-    if(fragments.has(fragment))return false;
-    fragments.add(fragment);
+    const fragment=letters.slice(i,i+24).join(''),seen=fragments.get(fragment);
+    if(seen){
+      if(!seen.repeated){cover(seen.start);seen.repeated=true;}
+      cover(i);diagnostic.duplicateWindows++;
+    }else fragments.set(fragment,{start:i,repeated:false});
   }
-  return true;
+  const contexts=[previous,next,assembly].map(text=>contentLetters(text).join(''));
+  let depth=0,start=0,witness=false;
+  for(let i=0;i<=letters.length;i++){
+    depth+=covered[i];
+    if(i<letters.length&&depth===0)continue;
+    const run=letters.slice(start,i);
+    diagnostic.independentRunLength=Math.max(diagnostic.independentRunLength,run.length);
+    if(!witness&&substantial(run)&&contexts.every(text=>uniqueIn(text,run.join(''))))witness=true;
+    start=i+1;
+  }
+  if([diagnostic.previousMatches,diagnostic.currentMatches,diagnostic.assembledMatches].some(count=>count!==1))
+    return {...diagnostic,reason:'ambiguous'};
+  if(!witness)return {...diagnostic,reason:'independent'};
+  if((anchor.includes('boss直聘平台')||anchor.includes('第三方平台'))&&!assembly.includes(footerStart))
+    return {...diagnostic,reason:'footer'};
+  return diagnostic;
 }
 
 function state(complete,topVerified,screens,issue='',accepted=false){
@@ -70,26 +115,27 @@ function state(complete,topVerified,screens,issue='',accepted=false){
   return {complete:verified,accepted,issue,topVerified,bottomVerified:verified,allScreensRead:verified,screens};
 }
 
-export function proveWholeClipboard(wholeText,firstScreenText){
-  const topVerified=hasHeader(firstScreenText)&&hasHeader(wholeText);
+export function proveWholeClipboard(wholeText,firstScreenText,{expectedName=''}={}){
+  const topVerified=hasHeader(firstScreenText,expectedName)&&hasHeader(wholeText,expectedName);
   const complete=topVerified&&chapter.test(normalized(wholeText))&&!hasFold(wholeText)&&hasTerminalClipboard(wholeText);
   return state(complete,topVerified,complete?1:0,complete?'':'未确认全选正文同时包含简历开头、章节和平台末尾。',complete);
 }
 
-export function createClipboardProof(){
-  let assembly='',previous='',screens=0,topVerified=false,complete=false,issue='';
-  const snapshot=()=>state(complete,topVerified,screens,issue);
+export function createClipboardProof({expectedName=''}={}){
+  let assembly='',previous='',screens=0,topVerified=false,complete=false,issue='',overlapDiagnostic=null;
+  const snapshot=()=>({...state(complete,topVerified,screens,issue),...(overlapDiagnostic?{overlap:overlapDiagnostic}:{})});
   return {
     snapshot,
     observe(text){
       const value=normalized(text);
       if(issue)return snapshot();
+      overlapDiagnostic=null;
       if(!value||hasFold(text)){
         issue=!value?'本屏没有可核对的剪贴板文字。':'本屏仍有折叠内容，尚未确认展开。';
         return snapshot();
       }
       if(!screens){
-        topVerified=hasHeader(text);
+        topVerified=hasHeader(text,expectedName);
         if(!topVerified){
           issue='未在首屏确认候选人姓名和简历开头。';
           return snapshot();
@@ -102,9 +148,8 @@ export function createClipboardProof(){
           return snapshot();
         }
         const overlap=suffixPrefix(previous,value);
-        const footerOverlap=overlap.includes('boss直聘平台')||overlap.includes('第三方平台');
-        if(!usefulAnchor(overlap)||!uniqueIn(previous,overlap)||!uniqueIn(value,overlap)||
-            !uniqueIn(assembly,overlap)||(footerOverlap&&!assembly.includes(footerStart))){
+        overlapDiagnostic=inspectOverlap(overlap,previous,value,assembly);
+        if(overlapDiagnostic.reason!=='accepted'){
           issue='相邻分屏之间没有唯一且充分的重叠文字，无法确认中间内容连续。';
           return snapshot();
         }
@@ -118,7 +163,7 @@ export function createClipboardProof(){
       previous=value;
       screens++;
       complete=chapter.test(assembly)&&hasTerminalClipboard(assembly);
-      return state(complete,topVerified,screens,'',true);
+      return {...state(complete,topVerified,screens,'',true),...(overlapDiagnostic?{overlap:overlapDiagnostic}:{})};
     },
   };
 }

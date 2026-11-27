@@ -22,6 +22,13 @@ _HEADINGS = SECTIONS | _EDUCATION | {
     '个人信息', '基本信息', '联系方式', '兴趣爱好', '培训经验', '进修经历',
     '岗位要求', '职位要求', '任职要求', '招聘要求', '职位描述', '岗位描述', 'JD',
 }
+_SECTION_LABEL = (
+    r'(?P<heading>'
+    + '|'.join(r'\s*'.join(map(re.escape, heading)) for heading in sorted(_HEADINGS, key=len, reverse=True))
+    + r')(?:\s*\(\d+\))?(?:\s*[:|]\s*|\s+)'
+)
+_INLINE_HEADING = re.compile(r'^\s*[#*]*\s*' + _SECTION_LABEL + r'(?P<content>\S.*)$')
+_MIXED_SECTION = re.compile(r'(?:^|[\s;|])' + _SECTION_LABEL + r'(?=\S)')
 _DEGREE = re.compile(r'博士(?:研究生)?|硕士(?:研究生)?|研究生(?!院)|本科|学士|大专|专科|中专|高中')
 _NOT_A_RECORD = re.compile(
     r'要求|须|必须|接受|允许|不限|及以上|以上学历|以下学历|优先|计划|打算|准备|报考|'
@@ -61,6 +68,27 @@ def _heading(line):
     return re.sub(r'\(\d+\)$', '', _compact(line).strip('#*:：'))
 
 
+def _section_line(line):
+    """Recognize a section label without rewriting its original evidence row.
+
+    Canvas resumes put the left-hand section label beside the first entry.
+    Require a real separator; prose such as "教育经历丰富" is not a heading.
+    Apply the same boundary to every section, including work and quoted jobs.
+    """
+    heading = _heading(line)
+    if heading in _HEADINGS:
+        return heading, ''
+    match = _INLINE_HEADING.match(unicodedata.normalize('NFKC', line))
+    if match:
+        # A row containing multiple labelled sections has no reliable context.
+        # Skip it and subsequent unlabelled rows until a clear heading restores
+        # the section; quoted education inside a job must not establish a degree.
+        if _MIXED_SECTION.search(match['content']):
+            return 'mixed', ''
+        return _compact(match['heading']), match['content']
+    return None, line
+
+
 def _mode(fragment):
     """Keep an absent mode distinct from contradictory or interrogative text."""
     non_full = re.search(r'非全日制|(?:不是|并非|不属于|不属)全日制|全日制[:：](?:否|不是)', fragment)
@@ -88,7 +116,7 @@ def _mode_line(line):
     return None
 
 
-def _record_degrees(line, header):
+def _record_degrees(line, header, evidence=None):
     value = _compact(line)
     if not value or len(value) > 220 or _NOT_A_RECORD.search(value):
         return []
@@ -119,7 +147,7 @@ def _record_degrees(line, header):
         rank = (3 if re.search(r'博士', match.group()) else
                 2 if re.search(r'硕士|研究生', match.group()) else
                 1 if re.search(r'本科|学士', match.group()) else 0)
-        result.append({'rank': rank, 'mode': _mode(fragment), 'evidence_quotes': [line]})
+        result.append({'rank': rank, 'mode': _mode(fragment), 'evidence_quotes': [line if evidence is None else evidence]})
     return result
 
 
@@ -127,23 +155,24 @@ def _degrees(resume):
     lines = [line.strip() for line in resume.splitlines() if line.strip()]
     section, header_count, records, consumed_modes = '', 0, [], set()
     for index, line in enumerate(lines):
-        heading = _heading(line)
-        if heading in _HEADINGS:
+        heading, content = _section_line(line)
+        if heading is not None:
             section = heading
-            continue
+            if not content:
+                continue
         header = not section and header_count < 12
         if not section:
             header_count += 1
         if not header and section not in _EDUCATION:
             continue
-        degrees = _record_degrees(line, header)
+        degrees = _record_degrees(content, header, evidence=line)
         # Copied education rows may place the study mode on the next line. Only
         # a standalone mode label is eligible, never text from another record.
         if degrees:
             neighbour = None
             if index + 1 < len(lines) and _mode_line(lines[index + 1]) is not None:
                 neighbour = index + 1
-            elif index > 0 and index - 1 not in consumed_modes and _mode_line(lines[index - 1]) is not None:
+            elif heading is None and index > 0 and index - 1 not in consumed_modes and _mode_line(lines[index - 1]) is not None:
                 neighbour = index - 1
             if neighbour is not None:
                 neighbour_mode = _mode_line(lines[neighbour])

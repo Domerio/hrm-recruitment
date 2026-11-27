@@ -103,6 +103,9 @@ body { background: #f3f6f8; }
 .candidate-ai-pending { color: #946000; }
 .candidate-ai-empty { color: #667b88; }
 .candidate-ai-running { color: #1677ff; }
+.candidate-ai-failure { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.candidate-ai-failed { color: #b42318; }
+.candidate-ai-failure-reason { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; color: #9e3a31; font-size: 12px; line-height: 1.5; }
 .candidate-batch-scopes { display: flex; flex-direction: column; gap: 10px; }
 .candidate-batch-scopes .ant-radio-wrapper { align-items: flex-start; margin-inline-end: 0; padding: 10px 12px; border: 1px solid #e2e9ec; border-radius: 8px; }
 .candidate-batch-scopes .ant-radio-wrapper-checked { border-color: #80b8b1; background: #f0f8f6; }
@@ -376,4 +379,16 @@ body { background: #f3f6f8; }
   .workbench-mobile-nav .ant-menu { padding-inline: 6px; }
   .workbench-content { padding-top: 18px; }
   .workbench-heading { margin-bottom: 16px; }
+}
+.direct-resume-upload .ant-upload {
+  padding: 14px 12px !important;
+}
+
+.direct-resume-upload .ant-upload-text,
+.direct-resume-upload .ant-upload-hint {
+  margin: 0 !important;
+}
+
+.direct-resume-upload .ant-upload-hint {
+  margin-top: 4px !important;
 }

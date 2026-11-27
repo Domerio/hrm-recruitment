@@ -181,6 +181,105 @@ class CollectionStatusTests(unittest.TestCase):
         with server.connect() as db:
             self.assertEqual(db.execute('SELECT deleted FROM candidates WHERE id=?',(cid,)).fetchone()[0], 0)
 
+    def test_clear_mark_allows_same_resume_to_be_recaptured_and_preserves_review_history(self):
+        cid = self.save()
+        with server.connect() as db:
+            db.execute("UPDATE candidates SET review='通过复核',note='人工复核备注' WHERE id=?", (cid,))
+            db.execute('INSERT INTO evaluations(candidate_id,model,result,created) VALUES(?,?,?,?)', (cid,'fixture','{}','now'))
+        self.assertEqual(self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':True}),
+                         {'deleted':[cid], 'collection_marks_cleared':[cid]})
+        self.assertEqual(self.status(), [])
+        self.assertEqual(self.status(share=True), [])
+        with server.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM candidate_card_keys WHERE candidate_id=?', (cid,)).fetchone()[0], 0)
+            self.assertEqual(tuple(db.execute('SELECT deleted,collection_mark_cleared FROM candidates WHERE id=?', (cid,)).fetchone()), (1,1))
+        # A changing list label must attach its new card key to the restored
+        # record, rather than depend on a cleared key or trip the UNIQUE index.
+        new_card = {**self.card, 'signature':self.card['signature'] + ' 希望本月到岗'}
+        self.assertEqual(self.save(card=new_card), cid)
+        self.assertEqual(self.status([new_card]), [new_card['signature']])
+        self.assertEqual(self.status([self.card]), [])
+        with server.connect() as db:
+            row = db.execute('SELECT deleted,collection_mark_cleared,review,note FROM candidates WHERE id=?', (cid,)).fetchone()
+            self.assertEqual(tuple(row), (0,0,'通过复核','人工复核备注'))
+            self.assertEqual(db.execute('SELECT count(*) FROM evaluations WHERE candidate_id=?', (cid,)).fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE action='restore_candidate_collection' AND detail=?", (str(cid),)).fetchone()[0], 1)
+
+    def test_clearing_a_mark_disables_legacy_resume_fingerprint_matching_too(self):
+        prose = '独立设计多相机工业检测设备，开发视觉定位算法和软件架构，负责现场部署、运行验证和客户技术交付。' * 3
+        employer = '测试精密装备股份有限公司视觉系统研发技术中心'
+        card = {'name':'张**', 'signature':f'张** 29岁 8年 本科 {prose} 期望温州 {employer}'}
+        resume = f'张**\n29岁 8年 本科\n个人优势\n{prose}\n工作经历\n{employer}'
+        cid, _ = server.save_boss_candidate(1, '张**', resume, '')
+        self.assertEqual(self.status([card]), [card['signature']])
+        self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':True})
+        self.assertEqual(self.status([card]), [])
+        with server.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM candidate_card_keys WHERE candidate_id=?', (cid,)).fetchone()[0], 0)
+
+    def test_clearing_selected_marks_leaves_other_people_and_jobs_unchanged(self):
+        cid = self.save()
+        other_card = {**self.card, 'signature':'张** 博士 3年 上海 另一人的嵌入式驱动与开发经历'}
+        other = self.save(card=other_card, resume=self.resume + '\n另一人的独立嵌入式经历。')
+        second_job, _ = server.save_boss_candidate(2, '张**', self.resume, '', card=server.source_card(self.card))
+        with server.connect() as db:
+            # Selected candidates may carry aliases from a prior job move.
+            db.execute('INSERT INTO candidate_card_keys VALUES(?,?,?)', (2,'selected-old-alias',cid))
+        self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':True})
+        self.assertEqual(self.status([self.card,other_card]), [other_card['signature']])
+        self.assertEqual(self.status(job=2), [self.card['signature']])
+        with server.connect() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM candidate_card_keys WHERE candidate_id=?', (cid,)).fetchone()[0], 0)
+            for unaffected in [other,second_job]:
+                self.assertEqual(tuple(db.execute('SELECT deleted,collection_mark_cleared FROM candidates WHERE id=?', (unaffected,)).fetchone()), (0,0))
+        new_id = self.save(resume=self.resume + '\n新增的不同项目经历。')
+        self.assertNotEqual(new_id,cid)
+        self.assertEqual(self.status(), [self.card['signature']])
+
+    def test_clear_option_is_strict_and_whole_selection_rolls_back(self):
+        cid = self.save()
+        for value in [None,0,1,'true','false',[],{}]:
+            with self.subTest(value=value), self.assertRaises(urllib.error.HTTPError) as error:
+                self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':value})
+            self.assertEqual(error.exception.code,400)
+        with self.assertRaises(urllib.error.HTTPError):
+            self.post('/api/candidates/delete', {'ids':[cid,99999], 'clear_collection_marks':True})
+        server.AI_LOCK.acquire()
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':True})
+            self.assertEqual(error.exception.code,409)
+        finally:
+            server.AI_LOCK.release()
+        self.assertEqual(self.status(), [self.card['signature']])
+        with server.connect() as db:
+            self.assertEqual(tuple(db.execute('SELECT deleted,collection_mark_cleared FROM candidates WHERE id=?', (cid,)).fetchone()), (0,0))
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE action='clear_collection_marks'").fetchone()[0],0)
+
+    def test_default_and_false_keep_mark_while_repeated_deletion_does_not_recreate_cleared_mark(self):
+        cid = self.save()
+        self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':False})
+        self.assertEqual(self.status(), [self.card['signature']])
+        with self.assertRaises(urllib.error.HTTPError):
+            self.save()
+        self.post('/api/candidates/delete', {'ids':[cid], 'clear_collection_marks':True})
+        self.post('/api/candidates/delete', {'ids':[cid]})
+        server.init_db()  # The migration must not replace a stored preference.
+        self.assertEqual(self.status(), [])
+        self.assertEqual(self.save(),cid)
+
+    def test_batch_clear_affects_only_selected_rows(self):
+        first = self.save()
+        second_card = {**self.card,'signature':self.card['signature'] + ' 第二条独立履历'}
+        second = self.save(card=second_card,resume=self.resume + '\n另一段不同经历。')
+        retained_card = {**self.card,'signature':self.card['signature'] + ' 保留的第三条履历'}
+        retained = self.save(card=retained_card,resume=self.resume + '\n第三段独立经历。')
+        response = self.post('/api/candidates/delete', {'ids':[first,second,first], 'clear_collection_marks':True})
+        self.assertEqual(response, {'deleted':[first,second],'collection_marks_cleared':[first,second]})
+        self.assertEqual(self.status([self.card,second_card,retained_card]), [retained_card['signature']])
+        with server.connect() as db:
+            self.assertEqual([row[0] for row in db.execute('SELECT id FROM candidates WHERE deleted=0')], [retained])
+
     def test_evaluation_does_not_save_for_a_resume_updated_during_model_call(self):
         cid = self.save()
         result = {'score':70,'category':'待确认','summary':'测试结论','questions':[],

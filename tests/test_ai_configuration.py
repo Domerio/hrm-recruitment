@@ -54,6 +54,7 @@ class AIConfigurationTests(unittest.TestCase):
     def request(self, path, data=None, expected=200):
         replies = []
         handler = server.Handler.__new__(server.Handler)
+        handler.headers = {}
         handler.permitted = lambda: True
         handler.path = path
         handler.send = lambda status, body, *args, **kwargs: replies.append((status, body))

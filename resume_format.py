@@ -1,5 +1,5 @@
 """Keep a self-contained subset of the rich text supplied by the clipboard."""
-from html import escape
+from html import escape, unescape
 from html.parser import HTMLParser
 import re
 import unicodedata
@@ -24,7 +24,7 @@ SECTIONS = set('个人优势 个人简介 自我评价 期望职位 求职意向
 DATED_SECTIONS = set('工作经历 工作经验 项目经历 项目经验 教育经历 教育背景'.split())
 EDUCATION_SECTIONS = {'教育经历', '教育背景'}
 INTENT_SECTIONS = {'期望职位', '求职意向'}
-DATE_RANGE = re.compile(r'\d{4}(?:[.年/-]\d{1,2}月?)?\s*[-–—~～至]+\s*(?:至今|现在|\d{4}(?:[.年/-]\d{1,2}月?)?)')
+DATE_RANGE = re.compile(r'\d{4}(?:[.年/-]\s*\d{1,2}月?)?\s*[-–—~～至]+\s*(?:至今|现在|\d{4}(?:[.年/-]\s*\d{1,2}月?)?)')
 LIST_ITEM = re.compile(r'^(?:\d{1,2}[.．、)）]\s*(?!\d)|[-•●▪]\s*)\S')
 NAME = re.compile(r'[\u3400-\u9fff·]{1,16}(?:[*＊]{1,4}|先生|女士)')
 DEGREE = re.compile(r'(?:高中|职高|中专|大专|专科|本科|学士|硕士(?:研究生)?|博士(?:研究生|后)?|研究生)(?:\s*[·•/、]\s*[^。；]{1,12})?')
@@ -246,24 +246,113 @@ def trailing_tags(lines, index, section):
     return lines[index:end]
 
 
+def presentation_lines(text):
+    """Split visible section columns only for display, never for AI evidence."""
+    lines = []
+    labels = '|'.join(map(re.escape, sorted(SECTIONS, key=len, reverse=True)))
+    clean = clean_resume_display_text(text).replace('\r\n', '\n')
+    # A blank paragraph boundary is stronger evidence than a visual line wrap.
+    # Keep it for presentation without changing display_lines used by evidence.
+    chunks = [[line.strip() for line in chunk.splitlines() if line.strip()]
+              for chunk in re.split(r'\n\s*\n', clean)]
+    breaks = {(left[-1], right[0]) for left, right in zip(chunks, chunks[1:]) if left and right}
+    previous = None
+    for line in display_lines(clean):
+        if (previous, line) in breaks:
+            lines.append('')
+        heading = re.fullmatch(r'(' + labels + r')(?:\s*[：:]\s*|\s+)(\S.*)', line)
+        if heading:
+            lines.extend(heading.groups())
+        else:
+            lines.append(line)
+        previous = line
+    return lines
+
+
+def inline_resume_entry(line, section):
+    if section not in DATED_SECTIONS or LIST_ITEM.match(line) or TAG_PROSE.match(line):
+        return None
+    period = DATE_RANGE.search(line)
+    if not period or period.end() != len(line) or not period.start():
+        return None
+    # Require a field boundary before the date, and preserve the complete
+    # company/role or school/degree label instead of guessing its columns.
+    prefix = line[:period.start()]
+    label = prefix.strip(' \t|｜·')
+    if (not prefix[-1].isspace() or not 2 <= len(label) <= 120 or
+            re.search(r'[。；;：:]', label)):
+        return None
+    return [label], period.group()
+
+
+def presentation_paragraph(lines, index, section):
+    """Reflow well-supported canvas continuations, retaining ambiguous breaks."""
+    fragments = [lines[index]]
+    start = index
+    # Source rows have no coordinates here. Require a long prose row rather
+    # than treating every unnumbered row as a continuation of the last item.
+    prose = bool(LIST_ITEM.match(lines[index]) or TAG_PROSE.match(lines[index]) or
+                 re.search(r'[，,。；;、]', lines[index]))
+    while prose and index+1 < len(lines):
+        previous, following = lines[index], lines[index+1]
+        width = sum(2 if unicodedata.east_asian_width(char) in {'W', 'F'} else 1 for char in previous)
+        if (width < 64 or re.search(r'[。；;！？!?：:]\s*$', previous) or
+                re.search(r'(?<!\d)\.\s*$', previous) or not following or
+                following.rstrip('：:') in SECTIONS or LIST_ITEM.match(following) or
+                re.match(r'^(?:\d{1,2}\s+\S|[①-⑳])', following) or
+                TAG_PROSE.match(following) or TAG_ENTITY.search(following) or
+                DATE_RANGE.fullmatch(following) or SCHOOL_BADGE.fullmatch(following) or
+                (len(following) <= 32 and following.endswith(('：', ':'))) or
+                (len(following) > 1 and is_resume_tag(following)) or
+                resume_entry(lines, index+1, section) or inline_resume_entry(following, section) or
+                trailing_tags(lines, index+1, section)):
+            break
+        fragments.append(following)
+        index += 1
+    text = fragments[0]
+    for fragment in fragments[1:]:
+        # A source newline between Latin words remains a word separator. CJK
+        # line wrapping needs no extra space, including single-character tails.
+        separator = ' ' if re.search(r'[A-Za-z0-9]$', text) and re.match(r'[A-Za-z0-9]', fragment) else ''
+        text += separator + fragment
+    return text, index-start+1
+
+
+def profile_metadata(line):
+    if len(line) > 80 or TAG_PROSE.match(line):
+        return False
+    return bool(re.fullmatch(r'(?:\d{1,2}岁|\d{1,2}(?:\.\d)?年(?:经验)?|' + DEGREE.pattern +
+                             r'|(?:在职|离职|应届)(?:[-－—][^。；]{1,16})?)(?:[\s|｜·]+.*)?', line))
+
+
 def format_plain_resume(text):
-    lines = display_lines(clean_resume_display_text(text))
+    lines = presentation_lines(text)
     parts = ['<div class="resume-structured">']
     index = 0
-    if lines and NAME.fullmatch(lines[0]):
-        parts.append(f'<h2>{escape(lines[0])}</h2>')
+    identity = re.fullmatch(r'(' + NAME.pattern + r')(?:\s+([^。；]{1,40}))?', lines[0]) if lines else None
+    if identity:
+        parts.append('<header class="resume-header"><div class="resume-heading">')
+        parts.append(f'<h2>{escape(identity[1])}</h2>')
+        if identity[2]:
+            parts.append(f'<p class="resume-status">{escape(identity[2])}</p>')
+        parts.append('</div>')
         index = 1
-        while index < min(6, len(lines)) and len(lines[index]) <= 16 and lines[index] not in SECTIONS:
+        while index < min(6, len(lines)) and profile_metadata(lines[index]):
             index += 1
         if index > 1:
             parts.append('<p class="resume-meta">' + ' · '.join(map(escape, lines[1:index])) + '</p>')
+        parts.append('</header>')
     section = ''
     entry_context = False
     while index < len(lines):
         line = lines[index]
+        if not line:
+            index += 1
+            continue
         heading = line.rstrip('：:')
         entry = resume_entry(lines, index, section)
-        tags = trailing_tags(lines, index, section) if (entry_context and not entry) or section in TAG_SECTIONS else []
+        inline_entry = inline_resume_entry(line, section)
+        tags = trailing_tags(lines, index, section) if (entry_context and not entry and not inline_entry) or section in TAG_SECTIONS else []
         if heading in SECTIONS:
             section = heading
             entry_context = False
@@ -273,11 +362,11 @@ def format_plain_resume(text):
             parts.append('<p class="resume-intent">' + ' · '.join(map(escape, lines[index:index+4])) + '</p>')
             index += 4
             continue
-        elif entry:
-            fields, period = entry
+        elif entry or inline_entry:
+            fields, period = inline_entry or entry
             parts.append(display_entry(fields, period))
             entry_context = section in WORK_SECTIONS
-            index += len(fields)+1
+            index += 1 if inline_entry else len(fields)+1
             if section in EDUCATION_SECTIONS:
                 start = index
                 while index < len(lines) and SCHOOL_BADGE.fullmatch(lines[index]):
@@ -292,8 +381,9 @@ def format_plain_resume(text):
         elif LIST_ITEM.match(line):
             parts.append('<ul class="resume-list">')
             while index < len(lines) and LIST_ITEM.match(lines[index]):
-                parts.append(f'<li>{escape(lines[index])}</li>')
-                index += 1
+                paragraph, consumed = presentation_paragraph(lines, index, section)
+                parts.append(f'<li>{escape(paragraph)}</li>')
+                index += consumed
             parts.append('</ul>')
             entry_context = section in WORK_SECTIONS
             continue
@@ -302,29 +392,54 @@ def format_plain_resume(text):
             entry_context = section in WORK_SECTIONS
         elif len(line) <= 12 and line.endswith(('：', ':')):
             parts.append(f'<p class="resume-label"><strong>{escape(line)}</strong></p>')
+        elif re.fullmatch(r'(?:近14天你首次看到该牛人[，,]\s*赶紧联系TA吧[。！!]?|该牛人近期受同行BOSS欢迎[。！!]?)', line):
+            parts.append(f'<p class="resume-notice">{escape(line)}</p>')
         else:
-            parts.append(f'<p>{escape(line)}</p>')
+            paragraph, consumed = presentation_paragraph(lines, index, section)
+            parts.append(f'<p>{escape(paragraph)}</p>')
+            index += consumed
+            continue
         index += 1
     parts.append('</div>')
     return ''.join(parts)
 
 
 def resume_document(markup, text=''):
-    content = clean_resume_display_markup(markup) if markup else format_plain_resume(text)
+    # Background canvas capture stores an escaped, unstyled pre wrapper.
+    # Treat that exact representation as plain text, including old records;
+    # genuine rich HTML keeps its sanitized structure and original wording.
+    plain = re.fullmatch(r'\s*<pre>([^<]*)</pre>\s*', markup or '', re.IGNORECASE)
+    wrapped = unescape(plain[1]) if plain else None
+    # clipboard_resume removes blank rows and trims line margins in the text
+    # field, while its pre wrapper retains them. Compare the same visible rows
+    # without ignoring wording, internal spaces, or their order. Render from
+    # the wrapper so original paragraph breaks remain available for display.
+    visible_lines = lambda value: [line.strip() for line in value.splitlines() if line.strip()]
+    if wrapped is not None and (not text or visible_lines(wrapped) == visible_lines(text)):
+        content = format_plain_resume(wrapped)
+    else:
+        content = clean_resume_display_markup(markup) if markup else format_plain_resume(text)
     return ('<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             '<title>履历资料</title><style>'
-            'body{font:14px/1.7 system-ui,sans-serif;color:#233743;max-width:850px;margin:18px auto;padding:0 20px;overflow-wrap:anywhere}'
-            'table{border-collapse:collapse}td,th{border:1px solid #dce4e9;padding:4px 8px}'
-            '.resume-structured h2{margin:0;font-size:22px}.resume-meta,.resume-date{color:#526b78}'
-            '.resume-structured h3{margin:1.25em 0 .5em;padding:.2em .65em;border-left:3px solid #187f76;background:#edf7f5;font-size:15px}'
-            '.resume-structured p{margin:.35em 0}.resume-structured .resume-entry{margin:1em 0 .35em;text-align:justify;text-align-last:justify}'
-            '.resume-entry-fields,.resume-entry-period{display:inline-block;max-width:100%;text-align:start;text-align-last:start;color:#526b78}'
-            '.resume-entry-fields strong{color:#233743}.resume-entry-period{white-space:nowrap;font-variant-numeric:tabular-nums}'
+            'html{background:#fff;color-scheme:light}*{box-sizing:border-box}'
+            'body{font:14px/1.8 "Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;color:#293d49;max-width:880px;margin:0 auto;padding:24px 28px 36px;overflow-wrap:anywhere}'
+            'pre,code{font:inherit}pre{white-space:pre-wrap!important;overflow-wrap:anywhere;max-width:100%;margin:0}'
+            'table{border-collapse:collapse;table-layout:fixed;max-width:100%;width:100%}td,th{border:1px solid #dce4e9;padding:7px 10px;overflow-wrap:anywhere}'
+            '.resume-header{padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid #e6ecef}'
+            '.resume-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}'
+            '.resume-structured h2{margin:0;font-size:22px;line-height:1.4;color:#163c39;letter-spacing:.02em}'
+            '.resume-meta,.resume-date,.resume-status{color:#697b86}.resume-structured .resume-status{font-size:12px;margin:0}.resume-structured .resume-meta{margin:5px 0 0;font-size:13px}'
+            '.resume-structured h3{margin:23px 0 11px;padding:6px 11px;border-left:3px solid #187f76;border-radius:0 6px 6px 0;background:#edf6f4;color:#205f59;font-size:15px;line-height:1.6}'
+            '.resume-structured p{margin:5px 0}.resume-structured .resume-entry{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;margin:16px 0 8px}'
+            '.resume-entry-fields{flex:1 1 200px;min-width:0}.resume-entry-fields,.resume-entry-period{display:inline-block;max-width:100%;color:#526b78}'
+            '.resume-entry-fields strong{color:#233743;font-weight:600}.resume-entry-period{font-size:12px;font-variant-numeric:tabular-nums}'
             '.resume-intent{color:#334d5a}.resume-structured .resume-tags{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;margin:.55em 0 .95em}'
             '.resume-tag{display:inline-block;max-width:100%;box-sizing:border-box;padding:2px 9px;border:1px solid #dce8e6;border-radius:5px;background:#f2f7f6;color:#3f655f;font-size:12px;line-height:1.65;overflow-wrap:anywhere}'
             '.resume-badge{border-color:#d7e7f4;background:#e8f2fa;color:#275e83}'
-            '@media(max-width:430px){.resume-structured .resume-entry{text-align:start;text-align-last:start}}'
-            '.resume-list{list-style:none;margin:.35em 0 .75em;padding-left:.8em;border-left:1px solid #dce4e9}'
-            '.resume-list li+li{margin-top:.2em}.resume-label{color:#334d5a}'
+            '.resume-list{list-style:none;margin:8px 0 12px;padding-left:12px;border-left:2px solid #e3ece9}'
+            '.resume-list li+li{margin-top:5px}.resume-label{color:#334d5a;padding-top:4px}'
+            '.resume-notice{padding:7px 11px;border-radius:6px;background:#f2f7f8;color:#607780;font-size:12px}'
+            '@media(max-width:430px){body{padding:18px 16px 28px;font-size:14px}.resume-structured h2{font-size:21px}.resume-structured h3{margin-top:21px}.resume-entry-period{flex-basis:100%}}'
+            '@media print{body{max-width:none;padding:0}.resume-structured h3{break-after:avoid}.resume-entry{break-inside:avoid}}'
             '</style><body>' + content + '</body></html>').encode('utf-8')

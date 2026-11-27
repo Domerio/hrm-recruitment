@@ -1,11 +1,57 @@
 {
- "manifest_version":3,
- "name":"HRM BOSS 候选人助手",
- "version":"0.5.33",
- "description":"从 BOSS 候选人列表逐人打开简历，复制正文并保存到本机工作台。",
- "permissions":["activeTab","scripting","storage","debugger"],
- "optional_permissions":["clipboardRead"],
- "host_permissions":["http://127.0.0.1/*"],
- "optional_host_permissions":["https://www.zhipin.com/*","https://zhipin.com/*"],
- "action":{"default_title":"HRM 候选人助手","default_popup":"popup.html"}
+  "manifest_version": 3,
+  "name": "HRM BOSS 候选人助手",
+  "version": "0.5.130",
+  "description": "人工登录后，通过前台复制读取 BOSS 在线简历，支持当前简历评估和本机或局域网工作台采集。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "debugger"
+  ],
+  "optional_permissions": [
+    "clipboardRead",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "https://www.zhipin.com/*",
+    "https://zhipin.com/*",
+    "https://docdownload.zhipin.com/*",
+    "https://*.zhipin.com/*",
+    "wss://*.zhipin.com/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_title": "HRM 候选人助手",
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "favorite-finder.html"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zhipin.com/web/frame/c-resume*",
+        "https://zhipin.com/web/frame/c-resume*"
+      ],
+      "js": [
+        "canvas-expand.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
 }

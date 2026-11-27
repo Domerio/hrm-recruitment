@@ -119,3 +119,7 @@ input[readonly] { background: #f7f9fa; }
 .status-message[data-state="review"] { border-color: #efdfb8; color: #805d16; background: #fffaed; }
 .status-message[data-state="ready"], .status-message[data-state="done"] { border-color: #cbe3d9; color: #28654e; background: #edf7f1; }
 .workbench-link { display: inline-flex; justify-content: center; gap: 6px; font-size: 12px; font-weight: 500; }
+
+.popup-connection #workbench-origin { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+.popup-connection #connect-workbench { margin: 12px 0 16px; }
+.workbench-link[aria-disabled="true"] { color: var(--muted); pointer-events: none; }

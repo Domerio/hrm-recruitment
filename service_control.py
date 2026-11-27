@@ -1,4 +1,4 @@
-"""Manage only this checkout's loopback server; never kill by port alone."""
+"""Manage only this checkout's workbench server; never kill by port alone."""
 import argparse
 import json
 import os
@@ -9,11 +9,15 @@ import time
 import urllib.request
 
 import psutil
+from network_access import load_environment, bind_host, bind_port
 
 ROOT = Path(__file__).resolve().parent
 SCRIPT = ROOT / 'server.py'
 DATA = ROOT / 'data'
-PORT = 8765
+load_environment(ROOT)
+PORT = bind_port()
+HOST = bind_host()
+HEALTH_HOST = '127.0.0.1' if HOST == '0.0.0.0' else HOST
 
 def same_path(a, b):
     return os.path.normcase(str(Path(a).resolve())) == os.path.normcase(str(Path(b).resolve()))
@@ -41,17 +45,17 @@ def verified_processes(pids):
     processes=[]
     for pid in pids:
         if not pid:
-            raise RuntimeError('Cannot identify a listener on 8765; nothing stopped.')
+            raise RuntimeError(f'Cannot identify a listener on {PORT}; nothing stopped.')
         process=psutil.Process(pid)
         if not belongs_to_project(process):
-            raise RuntimeError(f'Port 8765 includes an unrelated or unverified process ({pid}); nothing stopped.')
+            raise RuntimeError(f'Port {PORT} includes an unrelated or unverified process ({pid}); nothing stopped.')
         processes.append(process)
     return processes
 
 def health():
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with opener.open(f'http://127.0.0.1:{PORT}/api/health',timeout=1) as response:
+        with opener.open(f'http://{HEALTH_HOST}:{PORT}/api/health',timeout=1) as response:
             return json.load(response)
     except (OSError, ValueError):
         return {}
@@ -80,7 +84,7 @@ def manage(action):
         return {'listeners':pids,'health':health()}
     processes=verified_processes(pids)
     current=health()
-    if action=='start' and len(pids)==1 and current.get('pid')==pids[0] and current.get('version')=='0.5.41':
+    if action=='start' and len(pids)==1 and current.get('pid')==pids[0] and current.get('version')=='0.5.73' and current.get('bind_host')==HOST:
         return {'already_running':True,**current}
     if processes:
         if set(listeners())!=set(pids):
@@ -93,7 +97,7 @@ def manage(action):
         if alive:
             raise RuntimeError('A verified service is still exiting; no additional server launched.')
     if listeners():
-        raise RuntimeError('Port 8765 is still occupied; no additional server launched.')
+        raise RuntimeError(f'Port {PORT} is still occupied; no additional server launched.')
     return {'stopped':pids,**launch()}
 
 if __name__=='__main__':

@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node frontend/build.mjs",
-    "test": "node --test --test-isolation=none tests/*.test.mjs"
+    "test": "node --test --test-isolation=process --test-concurrency=4 tests/*.test.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

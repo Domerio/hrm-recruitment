@@ -1,0 +1,28 @@
+body { min-width: 360px; }
+.communications-content { display: grid; gap: 16px; padding: 18px; max-width: 1100px; margin: auto; }
+.fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.auto-job-value { display: block; min-height: 37px; padding: 8px 11px; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: #f5f8f8; color: var(--muted); overflow-wrap: anywhere; }
+.auto-job-value[data-state="matched"] { background: #edf7f3; border-color: #c7e2d7; color: var(--accent); font-weight: 600; }
+.auto-job-value[data-state="unmatched"] { background: #fff8e6; border-color: #ecd9a4; color: #85611c; }
+.job-confirmation { padding: 13px 14px; border: 1px solid #ecd9a4; border-radius: 7px; background: #fffcf4; }
+.job-confirmation-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px; }
+.job-confirmation-controls select { flex: 1; min-width: 170px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.snapshot-warnings { color: var(--muted); padding-left: 20px; margin: 12px 0; }
+.table-scroll { overflow: auto; margin-top: 16px; max-height: 360px; }
+table { border-collapse: collapse; width: 100%; background: #fff; text-align: left; }
+caption { text-align: left; font-weight: 600; margin-bottom: 7px; }
+th, td { vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); max-width: 400px; overflow-wrap: anywhere; white-space: pre-wrap; }
+th { background: #f5f8f9; color: var(--muted); position: sticky; top: 0; }
+.status-message[data-state="error"] { color: #b42318; }
+.status-message[data-state="done"] { color: var(--accent); }
+.status-message[data-state="warning"] { background: #fff8e6; border-color: #ecd9a4; color: #85611c; }
+.chat-collection-settings { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 18px; }
+.chat-collection-settings h2 { margin: 0 0 8px; }
+.collection-check { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.collection-check input { width: 16px; height: 16px; margin: 0; }
+#collect-limit { max-width: 180px; }
+#collection-results { padding-left: 22px; }
+#collection-results > li { margin: 12px 0; overflow-wrap: anywhere; }
+#collection-results p { margin: 5px 0; }
+@media (max-width: 620px) { .fields { grid-template-columns: 1fr; } .communications-content { padding: 12px; } }

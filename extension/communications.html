@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>沟通记录与简历采集 · HRM</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="communications.css">
+</head>
+<body>
+  <header class="extension-header">
+<div class="extension-brand"><span class="brand-mark" aria-hidden="true">H</span><div><h1>沟通记录与简历采集</h1><p>HRM · BOSS 沟通 · 0.5.130</p></div></div>
+    <a id="workbench-link" target="_blank" rel="noopener">打开工作台 ↗</a>
+  </header>
+  <main class="communications-content">
+    <section class="panel">
+      <p class="muted">在 BOSS「沟通」页打开一位候选人的聊天，插件会按“沟通职位”自动匹配归档岗位。可见卡片缺少消息编号时，会补读该会话最近最多 100 条记录。</p>
+      <div class="fields">
+        <div><label for="job-name">归档岗位 · 自动识别</label><output id="job-name" class="auto-job-value" aria-live="polite">读取聊天后自动匹配</output><input id="job" type="hidden"></div>
+        <div><label for="account-id">招聘账号标识</label><input id="account-id" maxlength="160" autocomplete="off" placeholder="例如 公司名称-招聘人"></div>
+        <div><label for="account-name">账号显示名</label><input id="account-name" maxlength="120" autocomplete="off" placeholder="例如 董女士"></div>
+      </div>
+      <p id="job-match-note" class="field-help">根据沟通职位和已确认的岗位对应关系自动归档。</p>
+      <div id="job-confirmation" class="job-confirmation" hidden>
+        <label for="job-confirm">确认对应的工作台岗位</label>
+        <div class="job-confirmation-controls"><select id="job-confirm"><option value="">请选择对应岗位</option></select><button id="confirm-job" class="secondary-button" type="button" disabled>确认对应岗位</button></div>
+        <p class="field-help">仅在无法唯一匹配时需要确认；成功导入后，无冲突的账号与平台岗位会自动沿用该对应关系。</p>
+      </div>
+      <p class="field-help">同一招聘账号每次使用相同标识，不同账号分别填写。消息按会话标识归档，同名候选人独立保存。</p>
+      <section class="chat-collection-settings" aria-labelledby="chat-collection-heading">
+        <h2 id="chat-collection-heading">聊天简历采集</h2>
+        <p class="field-help">读取页面后，在下方勾选同一沟通职位中的会话。自动对应岗位后，按会话获取已收到的附件和在线简历，并按该岗位评估。</p>
+        <label class="collection-check"><input id="collect-attachments" type="checkbox" checked> 获取已收到的附件原件</label>
+        <label class="collection-check"><input id="collect-online" type="checkbox" checked> 读取在线简历</label>
+        <label class="collection-check"><input id="evaluate-resumes" type="checkbox" checked> 归档后进行 AI 评估</label>
+        <label for="collect-limit">本次会话人数上限</label><input id="collect-limit" type="number" min="1" max="100" step="1" value="10">
+        <p class="field-help">读取时保持 BOSS 标签页选中，允许剪贴板访问用于在线简历全文复制。处理已核验的当前会话消息，必要时补读最近最多 100 条记录。附件支持 PDF、DOCX、UTF-8 TXT，最大 5 MB。未收到、过期或无法确认归属时显示状态。不会自动索要简历、发送消息、收藏或转发。</p>
+      </section>
+      <div class="actions"><button id="read" class="secondary-button" type="button">读取当前页面</button><button id="import" class="primary-button" type="button" disabled>导入工作台</button></div>
+      <div class="actions"><button id="collect" class="primary-button" type="button" disabled>采集已勾选会话的简历</button><button id="stop-collection" class="secondary-button" type="button" disabled>停止</button></div>
+      <p id="status" class="status-message" role="status" aria-live="polite">正在连接工作台…</p>
+      <p id="input-help" class="field-help" hidden>自动读取时请暂勿操作 BOSS 页面的鼠标和键盘；需要操作时先点击停止。</p>
+    </section>
+    <section id="preview" class="panel" hidden>
+      <h2 id="summary"></h2>
+      <ul id="warnings" class="snapshot-warnings"></ul>
+      <label for="platform-scope">BOSS 会话所属岗位</label>
+      <select id="platform-scope"><option value="">请选择平台岗位分组</option></select>
+      <p class="field-help">只导入当前沟通职位分组内勾选的会话，归档岗位由插件自动匹配。平台岗位标识缺失时，一次只导入一个已确认的会话。</p>
+      <div class="table-scroll"><table><caption>选择本次导入的会话</caption><thead><tr><th>导入</th><th>候选人</th><th>会话标识</th><th>未读</th><th>最近消息</th></tr></thead><tbody id="conversations"></tbody></table></div>
+      <div class="table-scroll"><table><caption>本次读取的选中会话消息</caption><thead><tr><th>方向</th><th>时间</th><th>内容</th></tr></thead><tbody id="messages"></tbody></table></div>
+      <p class="field-help">“导入工作台”只保存沟通记录和附件卡片；“采集已勾选会话的简历”会进一步读取原文、下载可获取的原件并归档。同一来源重复采集会复用原记录。</p>
+    </section>
+    <section id="collection-progress" class="panel" hidden aria-live="polite"><h2>简历采集进度</h2><ol id="collection-results"></ol></section>
+  </main>
+  <script type="module" src="communications.js"></script>
+</body>
+</html>
